@@ -257,13 +257,14 @@ export default function App() {
     try {
       const scorePercent = (user.neynarScore * 100).toFixed(1);
       const appUrl = process.env.NEXT_PUBLIC_URL || 'https://vibecheck-olive.vercel.app';
+      const logoUrl = `${appUrl}/vibe_check_logo.jpg`;
       
       // Create an engaging share message
       const shareText = `My vibe score is ${scorePercent}% 🔥\n\nCheck your vibe score and see where you rank! 👇`;
       
       const result = await composeCastAsync({
         text: shareText,
-        embeds: [appUrl]
+        embeds: [logoUrl, appUrl]
       });
 
       // result.cast can be null if user cancels
