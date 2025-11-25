@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import { useQuickAuth, useMiniKit } from "@coinbase/onchainkit/minikit";
 import { 
   Zap, 
   Activity, 
@@ -100,8 +101,28 @@ const ScoreGauge = ({ score }: { score: number }) => {
 
 // --- Main App Component ---
 export default function App() {
+  const { isFrameReady, setFrameReady, context } = useMiniKit();
   const [view, setView] = useState<ViewState>('splash');
-  const [user] = useState<UserData>(MOCK_USER);
+  const [user, setUser] = useState<UserData>(MOCK_USER);
+
+  // Initialize the miniapp
+  useEffect(() => {
+    if (!isFrameReady) {
+      setFrameReady();
+    }
+  }, [setFrameReady, isFrameReady]);
+
+  // Fetch real user data using useQuickAuth for authenticated requests
+  const { data: userStatsData, isLoading: isStatsLoading } = useQuickAuth<{
+    success: boolean;
+    user?: UserData;
+  }>("/api/user-stats", { method: "GET" });
+
+  useEffect(() => {
+    if (!isStatsLoading && userStatsData?.success && userStatsData.user) {
+      setUser(userStatsData.user);
+    }
+  }, [userStatsData, isStatsLoading]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -141,7 +162,9 @@ export default function App() {
         </div>
       </div>
       <div className="flex-1 flex flex-col items-center justify-center z-10 p-6 text-center mt-[-40px]">
-        <h2 className="text-zinc-500 font-bold tracking-widest text-xs mb-4">GOOD MORNING, @{user.username.toUpperCase()}</h2>
+        <h2 className="text-zinc-500 font-bold tracking-widest text-xs mb-4">
+          GOOD MORNING, @{(context?.user?.displayName || user.username || "THERE").toUpperCase()}
+        </h2>
         <h1 className="text-5xl font-black leading-none tracking-tight mb-6">
           READY TO<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">SYNC UP?</span>
         </h1>
