@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { useQuickAuth, useMiniKit } from "@coinbase/onchainkit/minikit";
+import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { 
   Zap, 
   Activity, 
@@ -99,67 +99,157 @@ const ScoreGauge = ({ score }: { score: number }) => {
   );
 };
 
+// Fetch user data directly from Neynar API
+// Note: In production, consider using a server-side API route to keep the API key secure
+async function fetchUserData(fid: number): Promise<UserData | null> {
+  // Use NEXT_PUBLIC_ prefix for client-side environment variables in Next.js
+  const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+  
+  if (!NEYNAR_API_KEY) {
+    console.warn("NEXT_PUBLIC_NEYNAR_API_KEY not set, using mock data");
+    return null;
+  }
+
+  try {
+    console.log(`Fetching Neynar data for FID: ${fid}`);
+    
+    // Call Neynar API v2
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+      {
+        method: "GET",
+        headers: {
+          "accept": "application/json",
+          "api_key": NEYNAR_API_KEY,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Neynar API error (${response.status}):`, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log("Neynar API response:", data);
+    
+    // Handle different response structures
+    const user = data.users?.[0] || data.result?.user || data.user;
+    
+    if (!user) {
+      console.warn("No user found in Neynar response");
+      return null;
+    }
+
+    // Extract user data
+    const username = user.username || user.display_name || `fid-${fid}`;
+    const pfpUrl = user.pfp_url || user.pfp?.url;
+    
+    // Get neynar_score from experimental features or calculate it
+    let neynarScore = user.experimental_features?.neynar_score || 
+                     user.neynar_score || 
+                     user.score || 
+                     0.5; // Default to 0.5 if missing
+    
+    // Ensure score is between 0 and 1
+    neynarScore = Math.max(0, Math.min(1, neynarScore));
+
+    // Calculate rank based on score
+    let rank = "RISING";
+    if (neynarScore > 0.9) rank = "LEGENDARY";
+    else if (neynarScore > 0.72) rank = "ELITE";
+    else if (neynarScore > 0.58) rank = "STRONG";
+
+    // Get follower count and calculate engagement
+    const followersCount = user.follower_count || user.followers?.count || 0;
+    
+    // Fetch casts to calculate likes (optional, can be async)
+    let likesReceived = 0;
+    try {
+      const castsResponse = await fetch(
+        `https://api.neynar.com/v2/farcaster/cast/user?fid=${fid}&limit=100`,
+        {
+          headers: {
+            "accept": "application/json",
+            "api_key": NEYNAR_API_KEY,
+          },
+        }
+      );
+      
+      if (castsResponse.ok) {
+        const castsData = await castsResponse.json();
+        const casts = castsData.result?.casts || castsData.casts || [];
+        likesReceived = casts.reduce((sum: number, cast: { reactions?: { likes?: unknown[] }; like_count?: number }) => {
+          return sum + (cast.reactions?.likes?.length || cast.like_count || 0);
+        }, 0);
+      }
+    } catch (error) {
+      console.warn("Failed to fetch casts, using default likes:", error);
+    }
+
+    return {
+      username,
+      fid,
+      streak: Math.floor(Math.random() * 30) + 1, // Mock for now - would need to track in database
+      neynarScore,
+      scoreDelta: (Math.random() * 0.01) - 0.005, // Mock for now
+      rank,
+      followersGained: Math.floor(Math.random() * 20), // Mock for now - compare with previous day
+      likesReceived,
+    };
+  } catch (error) {
+    console.error("Error fetching user data from Neynar:", error);
+    return null;
+  }
+}
+
 // --- Main App Component ---
 export default function App() {
   const { isFrameReady, setFrameReady, context } = useMiniKit();
   const [view, setView] = useState<ViewState>('splash');
   const [user, setUser] = useState<UserData>(MOCK_USER);
+  const [isLoadingUserData, setIsLoadingUserData] = useState(true);
 
-  // Initialize the miniapp
+  // Initialize the miniapp and fetch real user data
   useEffect(() => {
-    if (!isFrameReady) {
-      setFrameReady();
-    }
-  }, [setFrameReady, isFrameReady]);
- 
-  // Fetch real user data using useQuickAuth for authenticated requests
-  // Note: useQuickAuth only works when the app is running in a Farcaster frame context
-  // It automatically adds the Authorization header when in the proper context
-  const { data: userStatsData, isLoading: isStatsLoading, error: userStatsError } = useQuickAuth<{
-    success: boolean;
-    user?: UserData;
-  }>("/api/user-stats", { method: "GET" });
-
-  // Also try to get user FID from context as fallback
-  const userFid = context?.user?.fid;
-
-  useEffect(() => {
-    console.log("=== User Stats Effect ===");
-    console.log("isStatsLoading:", isStatsLoading);
-    console.log("userStatsError:", userStatsError);
-    console.log("userStatsData:", userStatsData);
-    console.log("context.user:", context?.user);
-    console.log("userFid from context:", userFid);
-    
-    if (userStatsError) {
-      console.error("❌ Error fetching user stats:", userStatsError);
-    }
-    
-    // If useQuickAuth didn't work but we have a user FID from context, try direct fetch
-    if (!isStatsLoading && !userStatsData && userFid && isFrameReady) {
-      console.log("⚠️ useQuickAuth returned no data, but we have FID from context.");
-      console.log("⚠️ This might mean useQuickAuth isn't working in this context.");
-      console.log("⚠️ Please check the Network tab to see if /api/user-stats was called.");
-      console.log("⚠️ If not called, the hook might need the app to be in a Farcaster frame context.");
-    }
-    
-    if (!isStatsLoading) {
-      if (userStatsData?.success && userStatsData.user) {
-        console.log("✅ Loaded real user data:", userStatsData.user);
-        setUser(userStatsData.user);
-      } else if (userStatsData && !userStatsData.success) {
-        console.warn("⚠️ API returned but with success: false");
-        console.warn("Response:", userStatsData);
-      } else {
-        console.warn("⚠️ No user data received, using mock data.");
-        console.warn("userStatsData is:", userStatsData);
-        console.warn("This might mean:");
-        console.warn("1. API endpoint not being called");
-        console.warn("2. useQuickAuth not working in this context");
-        console.warn("3. Check Network tab to see if /api/user-stats was called");
+    const initializeAndFetchData = async () => {
+      // Initialize the frame
+      if (!isFrameReady) {
+        setFrameReady();
       }
-    }
-  }, [userStatsData, isStatsLoading, userStatsError, userFid, isFrameReady, context]);
+
+      // Wait a bit for frame to be ready
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Get user FID from context
+      let userFid: number;
+      
+      if (context?.user?.fid) {
+        userFid = typeof context.user.fid === 'string' ? parseInt(context.user.fid) : context.user.fid;
+        console.log("✅ Got FID from context:", userFid);
+      } else {
+        // Fallback to mock FID for testing (dwr.eth)
+        userFid = 3;
+        console.warn("⚠️ No context available, using fallback FID:", userFid);
+      }
+
+      // Fetch real user data
+      setIsLoadingUserData(true);
+      const userData = await fetchUserData(userFid);
+      
+      if (userData) {
+        console.log("✅ Loaded real user data:", userData);
+        setUser(userData);
+      } else {
+        console.warn("⚠️ Failed to fetch user data, using mock data");
+      }
+      
+      setIsLoadingUserData(false);
+    };
+
+    initializeAndFetchData();
+  }, [isFrameReady, setFrameReady, context]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
