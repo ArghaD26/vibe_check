@@ -13,6 +13,9 @@ export const minikitConfig = {
     payload: "eyJkb21haW4iOiJ2aWJlY2hlY2stb2xpdmUudmVyY2VsLmFwcCJ9",
     signature: "aKEZqHCugBKFf9QdXYkLx80TaKFt5qvitPO1dOomogVVq2f/QX3+aw8NWXfljOHEIid4xpQ5fxkRynC8cQXW2hw="
   },
+  baseBuilder: {
+    ownerAddress: "0xD7924Fcd7EC2BBD907ED677e9D20941540C1EC00"
+  },
   miniapp: {
     version: "1",
     name: "Vibe Check", 
