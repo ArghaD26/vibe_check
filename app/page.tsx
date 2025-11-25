@@ -99,6 +99,99 @@ const ScoreGauge = ({ score }: { score: number }) => {
   );
 };
 
+// Helper functions for tracking streak and followers
+function getStorageKey(fid: number, key: string): string {
+  return `vibe_check_${fid}_${key}`;
+}
+
+function getStreakData(fid: number): { streak: number; lastCheckIn: string | null } {
+  if (typeof window === 'undefined') return { streak: 0, lastCheckIn: null };
+  
+  const streakKey = getStorageKey(fid, 'streak');
+  const lastCheckInKey = getStorageKey(fid, 'lastCheckIn');
+  
+  const streak = parseInt(localStorage.getItem(streakKey) || '0', 10);
+  const lastCheckIn = localStorage.getItem(lastCheckInKey);
+  
+  return { streak, lastCheckIn };
+}
+
+function getCurrentStreak(fid: number): number {
+  // Just read the streak without updating it
+  const { streak } = getStreakData(fid);
+  return streak || 1; // Default to 1 if no streak exists
+}
+
+function updateStreak(fid: number): number {
+  if (typeof window === 'undefined') return 1;
+  
+  const { streak, lastCheckIn } = getStreakData(fid);
+  const today = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
+  
+  let newStreak = streak;
+  
+  if (!lastCheckIn) {
+    // First check-in ever
+    newStreak = 1;
+  } else if (lastCheckIn === today) {
+    // Already checked in today, keep current streak
+    newStreak = streak;
+  } else if (lastCheckIn === yesterday) {
+    // Checked in yesterday, increment streak
+    newStreak = streak + 1;
+  } else {
+    // Missed a day, reset streak
+    newStreak = 1;
+  }
+  
+  // Update storage
+  const streakKey = getStorageKey(fid, 'streak');
+  const lastCheckInKey = getStorageKey(fid, 'lastCheckIn');
+  localStorage.setItem(streakKey, newStreak.toString());
+  localStorage.setItem(lastCheckInKey, today);
+  
+  return newStreak;
+}
+
+function getPreviousFollowerCount(fid: number): number {
+  if (typeof window === 'undefined') return 0;
+  
+  const key = getStorageKey(fid, 'prevFollowers');
+  const prevFollowers = localStorage.getItem(key);
+  return prevFollowers ? parseInt(prevFollowers, 10) : 0;
+}
+
+function updateFollowerCount(fid: number, currentCount: number): number {
+  if (typeof window === 'undefined') return 0;
+  
+  const prevCount = getPreviousFollowerCount(fid);
+  const key = getStorageKey(fid, 'prevFollowers');
+  const lastUpdateKey = getStorageKey(fid, 'lastFollowerUpdate');
+  
+  const today = new Date().toDateString();
+  const lastUpdate = localStorage.getItem(lastUpdateKey);
+  
+  let followersGained = 0;
+  
+  if (lastUpdate === today) {
+    // Already updated today, return previous calculation
+    const gainedKey = getStorageKey(fid, 'followersGained');
+    followersGained = parseInt(localStorage.getItem(gainedKey) || '0', 10);
+  } else {
+    // New day, calculate difference
+    followersGained = Math.max(0, currentCount - prevCount);
+    
+    // Update storage
+    localStorage.setItem(key, currentCount.toString());
+    localStorage.setItem(lastUpdateKey, today);
+    const gainedKey = getStorageKey(fid, 'followersGained');
+    localStorage.setItem(gainedKey, followersGained.toString());
+  }
+  
+  return followersGained;
+}
+
 // Fetch user data directly from Neynar API
 // Note: In production, consider using a server-side API route to keep the API key secure
 async function fetchUserData(fid: number): Promise<UserData | null> {
@@ -161,8 +254,8 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
     else if (neynarScore > 0.72) rank = "ELITE";
     else if (neynarScore > 0.58) rank = "STRONG";
 
-    // Get follower count (reserved for future use)
-    // const followersCount = user.follower_count || user.followers?.count || 0;
+    // Get follower count for tracking
+    const followersCount = user.follower_count || user.followers?.count || 0;
     
     // Fetch casts to calculate likes (optional, can be async)
     let likesReceived = 0;
@@ -188,14 +281,31 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
       console.warn("Failed to fetch casts, using default likes:", error);
     }
 
+    // Get current streak (without updating - streak only updates on check-in)
+    const streak = getCurrentStreak(fid);
+    // Calculate followers gained (compares with previous day's count)
+    const followersGained = updateFollowerCount(fid, followersCount);
+    
+    // Calculate score delta (compare with previous score if available)
+    const prevScoreKey = getStorageKey(fid, 'prevScore');
+    const prevScore = typeof window !== 'undefined' 
+      ? parseFloat(localStorage.getItem(prevScoreKey) || '0')
+      : 0;
+    const scoreDelta = prevScore > 0 ? neynarScore - prevScore : 0;
+    
+    // Store current score for next time
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(prevScoreKey, neynarScore.toString());
+    }
+
     return {
       username,
       fid,
-      streak: Math.floor(Math.random() * 30) + 1, // Mock for now - would need to track in database
+      streak,
       neynarScore,
-      scoreDelta: (Math.random() * 0.01) - 0.005, // Mock for now
+      scoreDelta,
       rank,
-      followersGained: Math.floor(Math.random() * 20), // Mock for now - compare with previous day
+      followersGained,
       likesReceived,
     };
   } catch (error) {
@@ -256,6 +366,11 @@ export default function App() {
 
   const handleCheckIn = () => {
     setView('scanning');
+    // Update streak when user checks in
+    if (user.fid) {
+      const newStreak = updateStreak(user.fid);
+      setUser(prev => ({ ...prev, streak: newStreak }));
+    }
     setTimeout(() => setView('score'), 2500);
   };
 
