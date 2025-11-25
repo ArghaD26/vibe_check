@@ -305,7 +305,7 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
         const casts = castsData.result?.casts || castsData.casts || castsData.data?.casts || [];
         console.log(`📊 Found ${casts.length} casts`);
         
-        likesReceived = casts.reduce((sum: number, cast: any) => {
+        likesReceived = casts.reduce((sum: number, cast: { reactions?: { likes?: unknown[]; like_count?: number }; like_count?: number }) => {
           // Try multiple possible fields for likes
           const likes = cast.reactions?.likes?.length || 
                        cast.like_count || 
