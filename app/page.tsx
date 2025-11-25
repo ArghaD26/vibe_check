@@ -1,20 +1,15 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { useMiniKit, useComposeCast } from "@coinbase/onchainkit/minikit";
+import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { 
   Zap, 
   Activity, 
-  Share2, 
-  ArrowRight, 
-  TrendingUp, 
   ShieldCheck, 
-  Flame, 
-  Lock,
-  Star
+  Flame
 } from 'lucide-react';
 
 // --- Types & Mock Data ---
-type ViewState = 'splash' | 'checkin' | 'scanning' | 'score' | 'stats' | 'digest';
+type ViewState = 'splash' | 'checkin' | 'scanning' | 'score';
 
 interface UserData {
   username: string;
@@ -38,29 +33,6 @@ const MOCK_USER: UserData = {
   accountAgeDays: 365,
 };
 
-const MOCK_DIGEST = [
-  {
-    id: 1,
-    author: 'vitalik.eth',
-    text: 'The most important thing for L2 scaling is not just TPS, but data availability sampling. We need to ensure...',
-    signalStrength: 'Critical',
-    time: '2h ago'
-  },
-  {
-    id: 2,
-    author: 'jessepollak',
-    text: 'Base is seeing all time high usage today. The onchain summer never ended. Builders are building.',
-    signalStrength: 'High',
-    time: '4h ago'
-  },
-  {
-    id: 3,
-    author: 'balajis',
-    text: 'The network state is forming faster than you think. Look at the data from the latest census.',
-    signalStrength: 'High',
-    time: '6h ago'
-  }
-];
 
 // --- Helper Components ---
 const ScoreGauge = ({ score }: { score: number }) => {
@@ -222,7 +194,6 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
 // --- Main App Component ---
 export default function App() {
   const { isFrameReady, setFrameReady, context } = useMiniKit();
-  const { composeCastAsync } = useComposeCast();
   const [view, setView] = useState<ViewState>('splash');
   const [user, setUser] = useState<UserData>(MOCK_USER);
 
@@ -280,30 +251,6 @@ export default function App() {
     setTimeout(() => setView('score'), 2500);
   };
 
-  const handleShareStats = async () => {
-    try {
-      const text = `Vibe Check Stats 📊\n\n👥 ${user.totalFollowers.toLocaleString()} Followers\n📅 ${user.accountAgeDays} Days Old\n🔥 ${user.streak} Day Streak\n\nCheck your vibe 👇`;
-      const appUrl = process.env.NEXT_PUBLIC_URL || 'https://vibecheck-olive.vercel.app';
-      
-      const result = await composeCastAsync({
-        text: text,
-        embeds: [appUrl]
-      });
-
-      // result.cast can be null if user cancels
-      if (result?.cast) {
-        console.log("Cast created successfully:", result.cast.hash);
-      } else {
-        console.log("User cancelled the cast");
-      }
-    } catch (error) {
-      console.error("Error sharing cast:", error);
-      // Fallback to clipboard if compose fails
-      const text = `Vibe Check Stats 📊\n\n👥 ${user.totalFollowers.toLocaleString()} Followers\n📅 ${user.accountAgeDays} Days Old\n🔥 ${user.streak} Day Streak\n\nCheck your vibe 👇`;
-      navigator.clipboard.writeText(text);
-      alert('Stats copied to clipboard!');
-    }
-  };
 
   // --- Views ---
   const renderSplash = () => (
@@ -336,7 +283,7 @@ export default function App() {
         <button onClick={handleCheckIn} className="group w-full bg-white hover:bg-zinc-200 text-black h-16 rounded-2xl font-black text-xl flex items-center justify-center gap-3 transition-all active:scale-95">
           <Activity className="w-6 h-6 group-hover:rotate-12 transition-transform" />
           <span>CHECK VIBE</span>
-        </button>
+            </button>
       </div>
     </div>
   );
@@ -361,99 +308,9 @@ export default function App() {
           </div>
         </div>
       </div>
-      <div className="p-6 space-y-3 bg-zinc-900/50 border-t border-zinc-800">
-        <button onClick={() => setView('stats')} className="w-full bg-white text-black hover:bg-zinc-200 font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
-          <span>View Growth Stats</span>
-          <ArrowRight className="w-5 h-5" />
-        </button>
-      </div>
     </div>
   );
 
-  const renderStats = () => (
-    <div className="flex flex-col h-full bg-black text-white relative">
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-      <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
-        <h2 className="text-zinc-500 text-xs font-bold tracking-[0.2em] mb-6 uppercase">Your Farcaster Vibe Stats</h2>
-        {/* The Card Container */}
-        <div className="bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 p-6 rounded-3xl w-full max-w-sm shadow-2xl">
-          {/* 2x1 Grid */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            {/* Followers Box */}
-            <div className="bg-black/40 p-5 rounded-2xl flex flex-col items-center justify-center aspect-square border border-zinc-800/50">
-              <TrendingUp className="w-8 h-8 text-emerald-400 mb-3" />
-              <span className="text-3xl font-black text-white">{user.totalFollowers.toLocaleString()}</span>
-              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1">Followers</span>
-            </div>
-            {/* Account Age Box */}
-            <div className="bg-black/40 p-5 rounded-2xl flex flex-col items-center justify-center aspect-square border border-zinc-800/50">
-              <Star className="w-8 h-8 text-purple-400 fill-purple-400 mb-3" />
-              <span className="text-3xl font-black text-white">{user.accountAgeDays}</span>
-              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1">Days Old</span>
-            </div>
-          </div>
-          {/* Streak Banner */}
-          <div className="bg-gradient-to-r from-orange-900/40 to-red-900/40 border border-orange-500/20 rounded-xl py-4 flex items-center justify-center gap-2">
-            <Flame className="w-5 h-5 text-orange-500 fill-orange-500 animate-pulse" />
-            <span className="text-orange-200 font-bold text-lg">{user.streak} Day Streak!</span>
-          </div>
-        </div>
-      </div>
-      {/* Action Buttons */}
-      <div className="p-6 space-y-3 z-10 bg-zinc-900/50 border-t border-zinc-800">
-        <button
-          onClick={handleShareStats}
-          className="w-full bg-white text-black hover:bg-zinc-200 font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg"
-        >
-          <Share2 className="w-5 h-5" />
-          <span>Share Stats</span>
-        </button>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setView('digest')}
-            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold py-3 rounded-xl text-sm transition-colors"
-          >
-            Next: Signals
-          </button>
-          <button
-            onClick={() => setView('checkin')}
-            className="bg-zinc-900 hover:bg-zinc-800 text-zinc-500 font-bold py-3 rounded-xl text-sm transition-colors"
-          >
-            Close App
-            </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderDigest = () => (
-    <div className="flex flex-col h-full bg-zinc-950 text-white">
-      <div className="p-6 pb-2 flex justify-between items-center">
-        <h2 className="text-xl font-black italic tracking-tighter">THE SIGNAL</h2>
-        <button onClick={() => setView('stats')} className="text-xs font-bold text-zinc-500 bg-zinc-900 px-3 py-1 rounded-full">STATS</button>
-      </div>
-      <div className="flex-1 overflow-y-auto px-6 space-y-4 pb-6 mt-4">
-        {MOCK_DIGEST.map((cast) => (
-          <div key={cast.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 shadow-lg relative">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-[10px] font-bold">
-                {cast.author[0].toUpperCase()}
-              </div>
-              <div className="font-bold text-sm text-zinc-200">@{cast.author}</div>
-            </div>
-            <p className="text-sm text-zinc-300">{cast.text}</p>
-          </div>
-        ))}
-        <div className="pt-4 pb-8">
-          <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 rounded-xl p-6 text-center border border-dashed border-zinc-700">
-            <Lock className="w-6 h-6 text-zinc-500 mx-auto mb-2" />
-            <h3 className="font-bold text-zinc-400 text-sm">Pro Insights Locked</h3>
-            <p className="text-zinc-600 text-xs mt-1 mb-3">Unlock deeper analytics with $DEGEN</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="w-full h-screen max-w-md mx-auto sm:h-[800px] sm:rounded-3xl shadow-2xl overflow-hidden font-sans select-none">
@@ -461,8 +318,6 @@ export default function App() {
       {view === 'checkin' && renderCheckIn()}
       {view === 'scanning' && renderScanning()}
       {view === 'score' && renderScore()}
-      {view === 'stats' && renderStats()}
-      {view === 'digest' && renderDigest()}
     </div>
   );
 }
