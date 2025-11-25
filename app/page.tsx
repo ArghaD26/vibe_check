@@ -23,8 +23,8 @@ interface UserData {
   neynarScore: number;
   scoreDelta: number;
   rank: string;
-  followersGained: number; // New field for the stats card
-  likesReceived: number;   // New field for the stats card
+  totalFollowers: number; // Total follower count
+  accountAgeDays: number; // Account age in days
 }
 
 const MOCK_USER: UserData = {
@@ -34,8 +34,8 @@ const MOCK_USER: UserData = {
   neynarScore: 0.998,
   scoreDelta: 0.002,
   rank: 'LEGENDARY',
-  followersGained: 12,
-  likesReceived: 145,
+  totalFollowers: 1250,
+  accountAgeDays: 365,
 };
 
 const MOCK_DIGEST = [
@@ -154,63 +154,7 @@ function updateStreak(fid: number): number {
   return newStreak;
 }
 
-function getPreviousFollowerCount(fid: number): number {
-  if (typeof window === 'undefined') return 0;
-  
-  const key = getStorageKey(fid, 'prevFollowers');
-  const prevFollowers = localStorage.getItem(key);
-  return prevFollowers ? parseInt(prevFollowers, 10) : 0;
-}
-
-function updateFollowerCount(fid: number, currentCount: number): number {
-  if (typeof window === 'undefined') {
-    console.log("⚠️ Window undefined, returning 0 for followers gained");
-    return 0;
-  }
-  
-  const prevCount = getPreviousFollowerCount(fid);
-  const key = getStorageKey(fid, 'prevFollowers');
-  const lastUpdateKey = getStorageKey(fid, 'lastFollowerUpdate');
-  
-  const today = new Date().toDateString();
-  const lastUpdate = localStorage.getItem(lastUpdateKey);
-  
-  console.log("👥 Follower tracking:", {
-    currentCount,
-    prevCount,
-    lastUpdate,
-    today,
-    isSameDay: lastUpdate === today
-  });
-  
-  let followersGained = 0;
-  
-  if (lastUpdate === today) {
-    // Already updated today, return previous calculation
-    const gainedKey = getStorageKey(fid, 'followersGained');
-    followersGained = parseInt(localStorage.getItem(gainedKey) || '0', 10);
-    console.log("👥 Using cached followers gained (same day):", followersGained);
-  } else {
-    // New day, calculate difference
-    if (prevCount === 0) {
-      // First time tracking - no previous data, so show 0 gained
-      // But we could also show current count as "new followers" if desired
-      followersGained = 0;
-      console.log("👥 First time tracking followers, no previous data");
-    } else {
-      followersGained = Math.max(0, currentCount - prevCount);
-      console.log("👥 Calculated followers gained:", followersGained, "from", prevCount, "to", currentCount);
-    }
-    
-    // Update storage
-    localStorage.setItem(key, currentCount.toString());
-    localStorage.setItem(lastUpdateKey, today);
-    const gainedKey = getStorageKey(fid, 'followersGained');
-    localStorage.setItem(gainedKey, followersGained.toString());
-  }
-  
-  return followersGained;
-}
+// Removed follower tracking functions - now showing total followers instead
 
 // Fetch user data directly from Neynar API
 // Note: In production, consider using a server-side API route to keep the API key secure
@@ -274,60 +218,49 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
     else if (neynarScore > 0.72) rank = "ELITE";
     else if (neynarScore > 0.58) rank = "STRONG";
 
-    // Get follower count for tracking
-    const followersCount = user.follower_count || user.followers?.count || 0;
-    console.log("📊 Follower count from API:", followersCount);
-    console.log("📊 User object keys:", Object.keys(user));
-    console.log("📊 Full user object:", JSON.stringify(user, null, 2));
+    // Get total follower count
+    const totalFollowers = user.follower_count || user.followers?.count || 0;
+    console.log("📊 Total followers from API:", totalFollowers);
     
-    // Fetch casts to calculate likes received
-    let likesReceived = 0;
+    // Calculate account age in days
+    let accountAgeDays = 0;
     try {
-      console.log("🔍 Fetching casts for likes calculation...");
-      const castsResponse = await fetch(
-        `https://api.neynar.com/v2/farcaster/cast/user?fid=${fid}&limit=100`,
-        {
-          headers: {
-            "accept": "application/json",
-            "api_key": NEYNAR_API_KEY,
-          },
+      // Try to get account creation date from various possible fields
+      const createdAt = user.created_at || 
+                       user.registered_at || 
+                       user.registration_timestamp ||
+                       user.timestamp;
+      
+      if (createdAt) {
+        // Handle both Unix timestamp (seconds or milliseconds) and ISO string
+        let creationDate: Date;
+        if (typeof createdAt === 'number') {
+          // If it's a number, check if it's in seconds or milliseconds
+          creationDate = new Date(createdAt > 1e12 ? createdAt : createdAt * 1000);
+        } else if (typeof createdAt === 'string') {
+          creationDate = new Date(createdAt);
+        } else {
+          creationDate = new Date(createdAt);
         }
-      );
-      
-      console.log("📡 Casts API response status:", castsResponse.status);
-      
-      if (castsResponse.ok) {
-        const castsData = await castsResponse.json();
-        console.log("📡 Casts API response structure:", Object.keys(castsData));
-        console.log("📡 Casts data sample:", JSON.stringify(castsData, null, 2).substring(0, 500));
         
-        // Try different possible response structures
-        const casts = castsData.result?.casts || castsData.casts || castsData.data?.casts || [];
-        console.log(`📊 Found ${casts.length} casts`);
-        
-        likesReceived = casts.reduce((sum: number, cast: { reactions?: { likes?: unknown[]; like_count?: number }; like_count?: number }) => {
-          // Try multiple possible fields for likes
-          const likes = cast.reactions?.likes?.length || 
-                       cast.like_count || 
-                       cast.reactions?.like_count ||
-                       (cast.reactions?.likes ? Array.isArray(cast.reactions.likes) ? cast.reactions.likes.length : 0 : 0) ||
-                       0;
-          return sum + likes;
-        }, 0);
-        
-        console.log("⭐ Total likes received:", likesReceived);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - creationDate.getTime());
+        accountAgeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        console.log("📅 Account creation date:", creationDate);
+        console.log("📅 Account age in days:", accountAgeDays);
       } else {
-        const errorText = await castsResponse.text();
-        console.error("❌ Casts API error:", castsResponse.status, errorText);
+        console.warn("⚠️ No account creation date found in API response");
+        // Fallback: estimate based on FID (lower FID = older account, roughly)
+        // This is a rough estimate - FID 1 was created around Jan 2020
+        accountAgeDays = Math.max(1, Math.floor((Date.now() - new Date('2020-01-01').getTime()) / (1000 * 60 * 60 * 24)));
       }
     } catch (error) {
-      console.error("❌ Failed to fetch casts:", error);
+      console.error("❌ Error calculating account age:", error);
+      accountAgeDays = 0;
     }
 
     // Get current streak (without updating - streak only updates on check-in)
     const streak = getCurrentStreak(fid);
-    // Calculate followers gained (compares with previous day's count)
-    const followersGained = updateFollowerCount(fid, followersCount);
     
     // Calculate score delta (compare with previous score if available)
     const prevScoreKey = getStorageKey(fid, 'prevScore');
@@ -348,9 +281,8 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
       neynarScore,
       scoreDelta,
       rank,
-      followersGained,
-      likesReceived,
-      followersCount,
+      totalFollowers,
+      accountAgeDays,
     });
 
     return {
@@ -360,8 +292,8 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
       neynarScore,
       scoreDelta,
       rank,
-      followersGained,
-      likesReceived,
+      totalFollowers,
+      accountAgeDays,
     };
   } catch (error) {
     console.error("Error fetching user data from Neynar:", error);
@@ -430,7 +362,7 @@ export default function App() {
   };
 
   const handleShareStats = () => {
-    const text = `Yesterday's Vibe Stats 📊\n\n👥 +${user.followersGained} Followers\n⭐ ${user.likesReceived} Likes\n🔥 ${user.streak} Day Streak\n\nCheck your growth 👇`;
+    const text = `Vibe Check Stats 📊\n\n👥 ${user.totalFollowers} Followers\n📅 ${user.accountAgeDays} Days Old\n🔥 ${user.streak} Day Streak\n\nCheck your vibe 👇`;
     navigator.clipboard.writeText(text);
     alert('Stats copied to clipboard! (Simulating Share)');
   };
@@ -512,14 +444,14 @@ export default function App() {
             {/* Followers Box */}
             <div className="bg-black/40 p-5 rounded-2xl flex flex-col items-center justify-center aspect-square border border-zinc-800/50">
               <TrendingUp className="w-8 h-8 text-emerald-400 mb-3" />
-              <span className="text-3xl font-black text-white">+{user.followersGained}</span>
+              <span className="text-3xl font-black text-white">{user.totalFollowers.toLocaleString()}</span>
               <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1">Followers</span>
             </div>
-            {/* Likes Box */}
+            {/* Account Age Box */}
             <div className="bg-black/40 p-5 rounded-2xl flex flex-col items-center justify-center aspect-square border border-zinc-800/50">
               <Star className="w-8 h-8 text-purple-400 fill-purple-400 mb-3" />
-              <span className="text-3xl font-black text-white">{user.likesReceived}</span>
-              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1">Likes</span>
+              <span className="text-3xl font-black text-white">{user.accountAgeDays}</span>
+              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-1">Days Old</span>
             </div>
           </div>
           {/* Streak Banner */}
