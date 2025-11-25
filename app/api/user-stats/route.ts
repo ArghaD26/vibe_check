@@ -89,41 +89,88 @@ async function fetchUserDataFromNeynar(fid: number) {
     }
 
     console.log("Found user:", user.username || user.display_name);
+    console.log("User object keys:", Object.keys(user));
+    console.log("Full user object:", JSON.stringify(user, null, 2));
 
-    // Fetch user stats/casts for engagement metrics
-    let likesReceived = 0;
-    const followersCount = user.follower_count || user.followers?.count || 0;
+    // Get follower count - Neynar API v2 returns follower_count directly
+    const totalFollowers = user.follower_count || 
+                           user.followers?.count || 
+                           user.followers_count ||
+                           0;
+    console.log("📊 Total followers from Neynar API:", totalFollowers);
+
+    // Get Neynar score from experimental features or calculate it
+    let neynarScore = user.experimental_features?.neynar_score || 
+                     user.neynar_score || 
+                     user.score || 
+                     0.5; // Default to 0.5 if missing
     
+    // Ensure score is between 0 and 1
+    neynarScore = Math.max(0, Math.min(1, neynarScore));
+    console.log("⭐ Neynar score:", neynarScore);
+
+    // Calculate account age in days from created_at timestamp
+    let accountAgeDays = 0;
     try {
-      const castsResponse = await fetch(
-        `https://api.neynar.com/v2/farcaster/cast/user?fid=${fid}&limit=100`,
-        {
-          headers: {
-            "api_key": neynarApiKey,
-            "accept": "application/json",
-          },
+      // Neynar API may provide created_at, registered_at, or registration_timestamp
+      const createdAt = user.created_at || 
+                       user.registered_at || 
+                       user.registration_timestamp ||
+                       user.timestamp;
+      
+      console.log("📅 Checking for creation date:", {
+        created_at: user.created_at,
+        registered_at: user.registered_at,
+        registration_timestamp: user.registration_timestamp,
+        timestamp: user.timestamp
+      });
+      
+      if (createdAt) {
+        // Handle both Unix timestamp (seconds or milliseconds) and ISO string
+        let creationDate: Date;
+        if (typeof createdAt === 'number') {
+          // If it's a number, check if it's in seconds or milliseconds
+          // Timestamps > 1e12 are in milliseconds, < 1e12 are in seconds
+          creationDate = new Date(createdAt > 1e12 ? createdAt : createdAt * 1000);
+        } else if (typeof createdAt === 'string') {
+          creationDate = new Date(createdAt);
+        } else {
+          creationDate = new Date(createdAt);
         }
-      );
-
-      if (castsResponse.ok) {
-        const castsData = await castsResponse.json();
-        const casts = castsData.result?.casts || castsData.casts || [];
-        likesReceived = casts.reduce((sum: number, cast: { reactions?: { likes?: unknown[] }; like_count?: number }) => {
-          const likes = cast.reactions?.likes?.length || cast.like_count || 0;
-          return sum + likes;
-        }, 0);
-        console.log(`Calculated likes received: ${likesReceived} from ${casts.length} casts`);
+        
+        // Validate the date
+        if (!isNaN(creationDate.getTime())) {
+          const now = new Date();
+          const diffTime = Math.abs(now.getTime() - creationDate.getTime());
+          accountAgeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          console.log("📅 Account creation date:", creationDate);
+          console.log("📅 Account age in days:", accountAgeDays);
+        } else {
+          throw new Error("Invalid date");
+        }
       } else {
-        console.warn("Failed to fetch casts, status:", castsResponse.status);
+        console.warn("⚠️ No account creation date found in Neynar API response");
+        // Fallback: estimate based on FID (lower FID = older account)
+        // FID 1 was created around Jan 2020, so we can estimate
+        const baseDate = new Date('2020-01-01').getTime();
+        const now = Date.now();
+        const daysSinceBase = Math.floor((now - baseDate) / (1000 * 60 * 60 * 24));
+        
+        // Lower FID = older account, but this is very rough
+        if (fid < 1000) {
+          accountAgeDays = Math.min(daysSinceBase, 730); // ~2 years max
+        } else if (fid < 10000) {
+          accountAgeDays = Math.min(daysSinceBase, 365); // ~1 year max
+        } else {
+          accountAgeDays = Math.min(daysSinceBase, 180); // ~6 months max
+        }
+        console.log("📅 Estimated account age from FID:", accountAgeDays, "days");
       }
-    } catch (castError) {
-      console.warn("Error fetching casts:", castError);
-      // Continue without cast data
+    } catch (error) {
+      console.error("❌ Error calculating account age:", error);
+      // Final fallback
+      accountAgeDays = 365; // Default to 1 year
     }
-
-    // Calculate Neynar score (this is a placeholder - adjust based on actual Neynar scoring)
-    // You might need to use a different endpoint or calculate this yourself
-    const neynarScore = Math.min(0.99, 0.5 + (followersCount / 10000) * 0.3 + (likesReceived / 1000) * 0.2);
     
     // Determine rank based on score
     let rank = "RISING";
@@ -138,8 +185,8 @@ async function fetchUserDataFromNeynar(fid: number) {
       neynarScore: neynarScore,
       scoreDelta: (Math.random() * 0.01) - 0.005, // Placeholder
       rank: rank,
-      followersGained: Math.floor(Math.random() * 20), // Placeholder - compare with previous day
-      likesReceived: likesReceived,
+      totalFollowers: totalFollowers,
+      accountAgeDays: accountAgeDays,
     };
   } catch (error) {
     console.error("Error fetching from Neynar:", error);
@@ -172,6 +219,19 @@ async function fetchUserDataFromFarcaster(fid: number) {
     }
 
     // Basic stats (without Neynar API, we have limited data)
+    // Estimate account age from FID
+    const baseDate = new Date('2020-01-01').getTime();
+    const now = Date.now();
+    const daysSinceBase = Math.floor((now - baseDate) / (1000 * 60 * 60 * 24));
+    let accountAgeDays = 365; // Default
+    if (fid < 1000) {
+      accountAgeDays = Math.min(daysSinceBase, 730);
+    } else if (fid < 10000) {
+      accountAgeDays = Math.min(daysSinceBase, 365);
+    } else {
+      accountAgeDays = Math.min(daysSinceBase, 180);
+    }
+
     return {
       username: user.username || user.display_name || `fid-${fid}`,
       fid: fid,
@@ -179,8 +239,8 @@ async function fetchUserDataFromFarcaster(fid: number) {
       neynarScore: 0.5, // Default score without Neynar API
       scoreDelta: 0,
       rank: "RISING",
-      followersGained: 0,
-      likesReceived: 0,
+      totalFollowers: 0, // Farcaster Hub API doesn't provide follower count
+      accountAgeDays: accountAgeDays,
     };
   } catch (error) {
     console.error("Error fetching from Farcaster:", error);
@@ -191,37 +251,53 @@ async function fetchUserDataFromFarcaster(fid: number) {
 export async function GET(request: NextRequest) {
   console.log("=== User Stats API Called ===");
   const authorization = request.headers.get("Authorization");
+  const { searchParams } = new URL(request.url);
+  const fidParam = searchParams.get("fid");
+  
   console.log("Authorization header present:", !!authorization);
+  console.log("FID query param:", fidParam);
   console.log("Request origin:", request.headers.get("origin"));
   console.log("Request referer:", request.headers.get("referer"));
   console.log("User agent:", request.headers.get("user-agent"));
 
-  if (!authorization || !authorization.startsWith("Bearer ")) {
-    console.error("Missing or invalid authorization header");
-    console.error("This usually means:");
-    console.error("1. App is not running in a Farcaster frame context");
-    console.error("2. useQuickAuth hook is not properly initialized");
-    console.error("3. Frame SDK needs to be set up correctly");
+  let userFid: number | null = null;
+
+  // Try to get FID from JWT auth first
+  if (authorization && authorization.startsWith("Bearer ")) {
+    try {
+      const domain = getUrlHost(request);
+      console.log("Verifying JWT for domain:", domain);
+      
+      const payload = await client.verifyJwt({
+        token: authorization.split(" ")[1] as string,
+        domain: domain,
+      });
+
+      console.log("JWT verified, payload:", payload);
+      userFid = typeof payload.sub === 'string' ? parseInt(payload.sub) : payload.sub;
+      console.log("User FID from JWT:", userFid);
+    } catch (jwtError) {
+      console.warn("JWT verification failed:", jwtError);
+      // Continue to try FID query param
+    }
+  }
+
+  // Fallback to FID query parameter if JWT auth failed or not provided
+  if (!userFid && fidParam) {
+    userFid = parseInt(fidParam);
+    console.log("Using FID from query param:", userFid);
+  }
+
+  if (!userFid || isNaN(userFid)) {
+    console.error("Unable to determine user FID");
     return NextResponse.json({ 
       success: false,
-      message: "Missing authentication token. This endpoint requires Farcaster frame authentication.",
-      error: "useQuickAuth hook must be used within a Farcaster mini app context",
-      hint: "Make sure the app is opened from within Farcaster/Base app, not a regular browser"
-    }, { status: 401 });
+      message: "Unable to determine user FID. Provide either JWT token or 'fid' query parameter.",
+      error: "Missing user identifier",
+    }, { status: 400 });
   }
 
   try {
-    const domain = getUrlHost(request);
-    console.log("Verifying JWT for domain:", domain);
-    
-    const payload = await client.verifyJwt({
-      token: authorization.split(" ")[1] as string,
-      domain: domain,
-    });
-
-    console.log("JWT verified, payload:", payload);
-    const userFid = typeof payload.sub === 'string' ? parseInt(payload.sub) : payload.sub;
-    console.log("User FID:", userFid);
 
     // Try to fetch from Neynar first, then fallback to Farcaster
     console.log("Attempting to fetch from Neynar...");

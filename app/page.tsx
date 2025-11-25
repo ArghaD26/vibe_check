@@ -156,150 +156,34 @@ function updateStreak(fid: number): number {
 
 // Removed follower tracking functions - now showing total followers instead
 
-// Fetch user data directly from Neynar API
-// Note: In production, consider using a server-side API route to keep the API key secure
+// Fetch user data from server-side API route (keeps API keys secure)
 async function fetchUserData(fid: number): Promise<UserData | null> {
-  // Use NEXT_PUBLIC_ prefix for client-side environment variables in Next.js
-  const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
-  
-  if (!NEYNAR_API_KEY) {
-    console.warn("NEXT_PUBLIC_NEYNAR_API_KEY not set, using mock data");
-    return null;
-  }
-
   try {
-    console.log(`Fetching Neynar data for FID: ${fid}`);
+    console.log(`Fetching user data for FID: ${fid} from API route`);
     
-    // Call Neynar API v2
-    const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
-      {
-        method: "GET",
-        headers: {
-          "accept": "application/json",
-          "api_key": NEYNAR_API_KEY,
-        },
-      }
-    );
+    // Call our server-side API route with FID as query parameter
+    const response = await fetch(`/api/user-stats?fid=${fid}`, {
+      method: "GET",
+      headers: {
+        "accept": "application/json",
+      },
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Neynar API error (${response.status}):`, errorText);
+      console.error(`API route error (${response.status}):`, errorText);
       return null;
     }
 
     const data = await response.json();
-    console.log("Neynar API response:", data);
+    console.log("API route response:", data);
     
-    // Handle different response structures
-    const user = data.users?.[0] || data.result?.user || data.user;
-    
-    if (!user) {
-      console.warn("No user found in Neynar response");
+    if (!data.success || !data.user) {
+      console.warn("API route returned unsuccessful response:", data);
       return null;
     }
 
-    // Extract user data
-    const username = user.username || user.display_name || `fid-${fid}`;
-    // const pfpUrl = user.pfp_url || user.pfp?.url; // Reserved for future use
-    
-    // Get neynar_score from experimental features or calculate it
-    let neynarScore = user.experimental_features?.neynar_score || 
-                     user.neynar_score || 
-                     user.score || 
-                     0.5; // Default to 0.5 if missing
-    
-    // Ensure score is between 0 and 1
-    neynarScore = Math.max(0, Math.min(1, neynarScore));
-
-    // Calculate rank based on score
-    let rank = "RISING";
-    if (neynarScore > 0.9) rank = "LEGENDARY";
-    else if (neynarScore > 0.72) rank = "ELITE";
-    else if (neynarScore > 0.58) rank = "STRONG";
-
-    // Get total follower count - check multiple possible fields
-    const totalFollowers = user.follower_count || 
-                           user.followers?.count || 
-                           user.followers_count ||
-                           user.followerCount ||
-                           0;
-    console.log("📊 User object for followers:", {
-      follower_count: user.follower_count,
-      followers: user.followers,
-      allKeys: Object.keys(user)
-    });
-    console.log("📊 Total followers from API:", totalFollowers);
-    
-    // Calculate account age in days
-    let accountAgeDays = 0;
-    try {
-      // Neynar API v2 typically has 'fid' and we can estimate from that
-      // Or check for registration/creation timestamps
-      const createdAt = user.created_at || 
-                       user.registered_at || 
-                       user.registration_timestamp ||
-                       user.timestamp ||
-                       user.verifications?.[0]?.timestamp;
-      
-      console.log("📅 Checking for creation date:", {
-        created_at: user.created_at,
-        registered_at: user.registered_at,
-        registration_timestamp: user.registration_timestamp,
-        timestamp: user.timestamp,
-        verifications: user.verifications
-      });
-      
-      if (createdAt) {
-        // Handle both Unix timestamp (seconds or milliseconds) and ISO string
-        let creationDate: Date;
-        if (typeof createdAt === 'number') {
-          // If it's a number, check if it's in seconds or milliseconds
-          // Timestamps > 1e12 are in milliseconds, < 1e12 are in seconds
-          creationDate = new Date(createdAt > 1e12 ? createdAt : createdAt * 1000);
-        } else if (typeof createdAt === 'string') {
-          creationDate = new Date(createdAt);
-        } else {
-          creationDate = new Date(createdAt);
-        }
-        
-        // Validate the date
-        if (!isNaN(creationDate.getTime())) {
-          const now = new Date();
-          const diffTime = Math.abs(now.getTime() - creationDate.getTime());
-          accountAgeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-          console.log("📅 Account creation date:", creationDate);
-          console.log("📅 Account age in days:", accountAgeDays);
-        } else {
-          throw new Error("Invalid date");
-        }
-      } else {
-        console.warn("⚠️ No account creation date found in API response");
-        // Fallback: estimate based on FID (lower FID = older account)
-        // FID 1 was created around Jan 2020, so we can estimate
-        // Rough formula: days since 2020-01-01, adjusted by FID
-        const baseDate = new Date('2020-01-01').getTime();
-        const now = Date.now();
-        const daysSinceBase = Math.floor((now - baseDate) / (1000 * 60 * 60 * 24));
-        
-        // Lower FID = older account, but this is very rough
-        // For FID < 1000, assume account is ~2 years old
-        // For FID < 10000, assume account is ~1 year old
-        // For others, assume ~6 months
-        if (fid < 1000) {
-          accountAgeDays = Math.min(daysSinceBase, 730); // ~2 years max
-        } else if (fid < 10000) {
-          accountAgeDays = Math.min(daysSinceBase, 365); // ~1 year max
-        } else {
-          accountAgeDays = Math.min(daysSinceBase, 180); // ~6 months max
-        }
-        console.log("📅 Estimated account age from FID:", accountAgeDays, "days");
-      }
-    } catch (error) {
-      console.error("❌ Error calculating account age:", error);
-      // Final fallback
-      accountAgeDays = 365; // Default to 1 year
-    }
+    const apiUser = data.user;
 
     // Get current streak (without updating - streak only updates on check-in)
     const streak = getCurrentStreak(fid);
@@ -309,36 +193,28 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
     const prevScore = typeof window !== 'undefined' 
       ? parseFloat(localStorage.getItem(prevScoreKey) || '0')
       : 0;
-    const scoreDelta = prevScore > 0 ? neynarScore - prevScore : 0;
+    const scoreDelta = prevScore > 0 ? apiUser.neynarScore - prevScore : 0;
     
     // Store current score for next time
     if (typeof window !== 'undefined') {
-      localStorage.setItem(prevScoreKey, neynarScore.toString());
+      localStorage.setItem(prevScoreKey, apiUser.neynarScore.toString());
     }
 
-    console.log("✅ Final user data:", {
-      username,
-      fid,
-      streak,
-      neynarScore,
-      scoreDelta,
-      rank,
-      totalFollowers,
-      accountAgeDays,
-    });
-
-    return {
-      username,
-      fid,
-      streak,
-      neynarScore,
-      scoreDelta,
-      rank,
-      totalFollowers,
-      accountAgeDays,
+    const userData: UserData = {
+      username: apiUser.username,
+      fid: apiUser.fid,
+      streak: streak, // Use client-side tracked streak
+      neynarScore: apiUser.neynarScore,
+      scoreDelta: scoreDelta,
+      rank: apiUser.rank,
+      totalFollowers: apiUser.totalFollowers,
+      accountAgeDays: apiUser.accountAgeDays,
     };
+
+    console.log("✅ Final user data:", userData);
+    return userData;
   } catch (error) {
-    console.error("Error fetching user data from Neynar:", error);
+    console.error("Error fetching user data from API route:", error);
     return null;
   }
 }
