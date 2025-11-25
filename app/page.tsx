@@ -144,7 +144,7 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
 
     // Extract user data
     const username = user.username || user.display_name || `fid-${fid}`;
-    const pfpUrl = user.pfp_url || user.pfp?.url;
+    // const pfpUrl = user.pfp_url || user.pfp?.url; // Reserved for future use
     
     // Get neynar_score from experimental features or calculate it
     let neynarScore = user.experimental_features?.neynar_score || 
@@ -161,8 +161,8 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
     else if (neynarScore > 0.72) rank = "ELITE";
     else if (neynarScore > 0.58) rank = "STRONG";
 
-    // Get follower count and calculate engagement
-    const followersCount = user.follower_count || user.followers?.count || 0;
+    // Get follower count (reserved for future use)
+    // const followersCount = user.follower_count || user.followers?.count || 0;
     
     // Fetch casts to calculate likes (optional, can be async)
     let likesReceived = 0;
@@ -209,7 +209,6 @@ export default function App() {
   const { isFrameReady, setFrameReady, context } = useMiniKit();
   const [view, setView] = useState<ViewState>('splash');
   const [user, setUser] = useState<UserData>(MOCK_USER);
-  const [isLoadingUserData, setIsLoadingUserData] = useState(true);
 
   // Initialize the miniapp and fetch real user data
   useEffect(() => {
@@ -235,7 +234,6 @@ export default function App() {
       }
 
       // Fetch real user data
-      setIsLoadingUserData(true);
       const userData = await fetchUserData(userFid);
       
       if (userData) {
@@ -244,8 +242,6 @@ export default function App() {
       } else {
         console.warn("⚠️ Failed to fetch user data, using mock data");
       }
-      
-      setIsLoadingUserData(false);
     };
 
     initializeAndFetchData();
