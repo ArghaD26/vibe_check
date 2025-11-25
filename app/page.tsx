@@ -64,7 +64,7 @@ const ScoreGauge = ({ score }: { score: number }) => {
         />
       </svg>
       <div className="absolute flex flex-col items-center animate-in fade-in zoom-in duration-700">
-        <span className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] mb-2 uppercase">Signal Score</span>
+        <span className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] mb-2 uppercase">VIBE SCORE</span>
         <span className={`text-6xl font-black ${colorClass} tracking-tighter`}>{(score * 100).toFixed(1)}</span>
         <span className={`text-sm font-bold ${colorClass} opacity-80 mt-1`}>%</span>
       </div>
