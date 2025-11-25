@@ -172,11 +172,33 @@ async function fetchUserDataFromNeynar(fid: number) {
       accountAgeDays = 365; // Default to 1 year
     }
     
-    // Determine rank based on score
-    let rank = "RISING";
-    if (neynarScore > 0.9) rank = "LEGENDARY";
-    else if (neynarScore > 0.72) rank = "ELITE";
-    else if (neynarScore > 0.58) rank = "STRONG";
+    // Determine tier based on score (0-100 scale, every 10 points)
+    // Convert score (0-1) to percentage (0-100)
+    const scorePercent = Math.floor(neynarScore * 100);
+    
+    // Calculate tier based on 10-point ranges
+    let rank: string;
+    if (scorePercent >= 90) {
+      rank = "LEGENDARY";
+    } else if (scorePercent >= 80) {
+      rank = "MASTER";
+    } else if (scorePercent >= 70) {
+      rank = "ELITE";
+    } else if (scorePercent >= 60) {
+      rank = "ADVANCED";
+    } else if (scorePercent >= 50) {
+      rank = "STRONG";
+    } else if (scorePercent >= 40) {
+      rank = "GROWING";
+    } else if (scorePercent >= 30) {
+      rank = "RISING";
+    } else if (scorePercent >= 20) {
+      rank = "APPRENTICE";
+    } else if (scorePercent >= 10) {
+      rank = "NOVICE";
+    } else {
+      rank = "BEGINNER";
+    }
 
     return {
       username: user.username || user.display_name || `fid-${fid}`,
@@ -238,7 +260,7 @@ async function fetchUserDataFromFarcaster(fid: number) {
       streak: 1, // Would need to track this
       neynarScore: 0.5, // Default score without Neynar API
       scoreDelta: 0,
-      rank: "RISING",
+      rank: "BEGINNER",
       totalFollowers: 0, // Farcaster Hub API doesn't provide follower count
       accountAgeDays: accountAgeDays,
     };

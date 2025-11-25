@@ -41,10 +41,16 @@ const ScoreGauge = ({ score }: { score: number }) => {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - score);
   
-  let colorClass = 'text-red-500';
-  if (score > 0.58) colorClass = 'text-yellow-400';
-  if (score > 0.72) colorClass = 'text-emerald-400';
-  if (score > 0.9) colorClass = 'text-purple-400';
+  // Color scheme based on score tiers (0-100 scale)
+  const scorePercent = score * 100;
+  let colorClass = 'text-red-500'; // 0-29: Red
+  if (scorePercent >= 30 && scorePercent < 40) colorClass = 'text-orange-500'; // 30-39: Orange
+  if (scorePercent >= 40 && scorePercent < 50) colorClass = 'text-yellow-400'; // 40-49: Yellow
+  if (scorePercent >= 50 && scorePercent < 60) colorClass = 'text-lime-400'; // 50-59: Lime
+  if (scorePercent >= 60 && scorePercent < 70) colorClass = 'text-green-400'; // 60-69: Green
+  if (scorePercent >= 70 && scorePercent < 80) colorClass = 'text-emerald-400'; // 70-79: Emerald
+  if (scorePercent >= 80 && scorePercent < 90) colorClass = 'text-cyan-400'; // 80-89: Cyan
+  if (scorePercent >= 90) colorClass = 'text-purple-400'; // 90-100: Purple
   
   return (
     <div className="relative w-64 h-64 flex items-center justify-center">
@@ -335,7 +341,7 @@ export default function App() {
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-lg">
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            <span className="font-bold text-emerald-400 tracking-wide text-sm">STATUS: {user.rank}</span>
+            <span className="font-bold text-emerald-400 tracking-wide text-sm">TIER: {user.rank}</span>
           </div>
         </div>
       </div>
