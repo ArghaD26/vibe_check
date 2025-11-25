@@ -163,7 +163,10 @@ function getPreviousFollowerCount(fid: number): number {
 }
 
 function updateFollowerCount(fid: number, currentCount: number): number {
-  if (typeof window === 'undefined') return 0;
+  if (typeof window === 'undefined') {
+    console.log("⚠️ Window undefined, returning 0 for followers gained");
+    return 0;
+  }
   
   const prevCount = getPreviousFollowerCount(fid);
   const key = getStorageKey(fid, 'prevFollowers');
@@ -172,15 +175,32 @@ function updateFollowerCount(fid: number, currentCount: number): number {
   const today = new Date().toDateString();
   const lastUpdate = localStorage.getItem(lastUpdateKey);
   
+  console.log("👥 Follower tracking:", {
+    currentCount,
+    prevCount,
+    lastUpdate,
+    today,
+    isSameDay: lastUpdate === today
+  });
+  
   let followersGained = 0;
   
   if (lastUpdate === today) {
     // Already updated today, return previous calculation
     const gainedKey = getStorageKey(fid, 'followersGained');
     followersGained = parseInt(localStorage.getItem(gainedKey) || '0', 10);
+    console.log("👥 Using cached followers gained (same day):", followersGained);
   } else {
     // New day, calculate difference
-    followersGained = Math.max(0, currentCount - prevCount);
+    if (prevCount === 0) {
+      // First time tracking - no previous data, so show 0 gained
+      // But we could also show current count as "new followers" if desired
+      followersGained = 0;
+      console.log("👥 First time tracking followers, no previous data");
+    } else {
+      followersGained = Math.max(0, currentCount - prevCount);
+      console.log("👥 Calculated followers gained:", followersGained, "from", prevCount, "to", currentCount);
+    }
     
     // Update storage
     localStorage.setItem(key, currentCount.toString());
@@ -256,10 +276,14 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
 
     // Get follower count for tracking
     const followersCount = user.follower_count || user.followers?.count || 0;
+    console.log("📊 Follower count from API:", followersCount);
+    console.log("📊 User object keys:", Object.keys(user));
+    console.log("📊 Full user object:", JSON.stringify(user, null, 2));
     
-    // Fetch casts to calculate likes (optional, can be async)
+    // Fetch casts to calculate likes received
     let likesReceived = 0;
     try {
+      console.log("🔍 Fetching casts for likes calculation...");
       const castsResponse = await fetch(
         `https://api.neynar.com/v2/farcaster/cast/user?fid=${fid}&limit=100`,
         {
@@ -270,15 +294,34 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
         }
       );
       
+      console.log("📡 Casts API response status:", castsResponse.status);
+      
       if (castsResponse.ok) {
         const castsData = await castsResponse.json();
-        const casts = castsData.result?.casts || castsData.casts || [];
-        likesReceived = casts.reduce((sum: number, cast: { reactions?: { likes?: unknown[] }; like_count?: number }) => {
-          return sum + (cast.reactions?.likes?.length || cast.like_count || 0);
+        console.log("📡 Casts API response structure:", Object.keys(castsData));
+        console.log("📡 Casts data sample:", JSON.stringify(castsData, null, 2).substring(0, 500));
+        
+        // Try different possible response structures
+        const casts = castsData.result?.casts || castsData.casts || castsData.data?.casts || [];
+        console.log(`📊 Found ${casts.length} casts`);
+        
+        likesReceived = casts.reduce((sum: number, cast: any) => {
+          // Try multiple possible fields for likes
+          const likes = cast.reactions?.likes?.length || 
+                       cast.like_count || 
+                       cast.reactions?.like_count ||
+                       (cast.reactions?.likes ? Array.isArray(cast.reactions.likes) ? cast.reactions.likes.length : 0 : 0) ||
+                       0;
+          return sum + likes;
         }, 0);
+        
+        console.log("⭐ Total likes received:", likesReceived);
+      } else {
+        const errorText = await castsResponse.text();
+        console.error("❌ Casts API error:", castsResponse.status, errorText);
       }
     } catch (error) {
-      console.warn("Failed to fetch casts, using default likes:", error);
+      console.error("❌ Failed to fetch casts:", error);
     }
 
     // Get current streak (without updating - streak only updates on check-in)
@@ -297,6 +340,18 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
     if (typeof window !== 'undefined') {
       localStorage.setItem(prevScoreKey, neynarScore.toString());
     }
+
+    console.log("✅ Final user data:", {
+      username,
+      fid,
+      streak,
+      neynarScore,
+      scoreDelta,
+      rank,
+      followersGained,
+      likesReceived,
+      followersCount,
+    });
 
     return {
       username,
