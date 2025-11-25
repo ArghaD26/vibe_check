@@ -192,12 +192,21 @@ export async function GET(request: NextRequest) {
   console.log("=== User Stats API Called ===");
   const authorization = request.headers.get("Authorization");
   console.log("Authorization header present:", !!authorization);
+  console.log("Request origin:", request.headers.get("origin"));
+  console.log("Request referer:", request.headers.get("referer"));
+  console.log("User agent:", request.headers.get("user-agent"));
 
   if (!authorization || !authorization.startsWith("Bearer ")) {
     console.error("Missing or invalid authorization header");
+    console.error("This usually means:");
+    console.error("1. App is not running in a Farcaster frame context");
+    console.error("2. useQuickAuth hook is not properly initialized");
+    console.error("3. Frame SDK needs to be set up correctly");
     return NextResponse.json({ 
       success: false,
-      message: "Missing token" 
+      message: "Missing authentication token. This endpoint requires Farcaster frame authentication.",
+      error: "useQuickAuth hook must be used within a Farcaster mini app context",
+      hint: "Make sure the app is opened from within Farcaster/Base app, not a regular browser"
     }, { status: 401 });
   }
 

@@ -111,34 +111,55 @@ export default function App() {
       setFrameReady();
     }
   }, [setFrameReady, isFrameReady]);
-
+ 
   // Fetch real user data using useQuickAuth for authenticated requests
+  // Note: useQuickAuth only works when the app is running in a Farcaster frame context
+  // It automatically adds the Authorization header when in the proper context
   const { data: userStatsData, isLoading: isStatsLoading, error: userStatsError } = useQuickAuth<{
     success: boolean;
     user?: UserData;
   }>("/api/user-stats", { method: "GET" });
+
+  // Also try to get user FID from context as fallback
+  const userFid = context?.user?.fid;
 
   useEffect(() => {
     console.log("=== User Stats Effect ===");
     console.log("isStatsLoading:", isStatsLoading);
     console.log("userStatsError:", userStatsError);
     console.log("userStatsData:", userStatsData);
+    console.log("context.user:", context?.user);
+    console.log("userFid from context:", userFid);
     
     if (userStatsError) {
       console.error("❌ Error fetching user stats:", userStatsError);
+    }
+    
+    // If useQuickAuth didn't work but we have a user FID from context, try direct fetch
+    if (!isStatsLoading && !userStatsData && userFid && isFrameReady) {
+      console.log("⚠️ useQuickAuth returned no data, but we have FID from context.");
+      console.log("⚠️ This might mean useQuickAuth isn't working in this context.");
+      console.log("⚠️ Please check the Network tab to see if /api/user-stats was called.");
+      console.log("⚠️ If not called, the hook might need the app to be in a Farcaster frame context.");
     }
     
     if (!isStatsLoading) {
       if (userStatsData?.success && userStatsData.user) {
         console.log("✅ Loaded real user data:", userStatsData.user);
         setUser(userStatsData.user);
+      } else if (userStatsData && !userStatsData.success) {
+        console.warn("⚠️ API returned but with success: false");
+        console.warn("Response:", userStatsData);
       } else {
         console.warn("⚠️ No user data received, using mock data.");
-        console.warn("Response:", userStatsData);
-        // Keep using mock data
+        console.warn("userStatsData is:", userStatsData);
+        console.warn("This might mean:");
+        console.warn("1. API endpoint not being called");
+        console.warn("2. useQuickAuth not working in this context");
+        console.warn("3. Check Network tab to see if /api/user-stats was called");
       }
     }
-  }, [userStatsData, isStatsLoading, userStatsError]);
+  }, [userStatsData, isStatsLoading, userStatsError, userFid, isFrameReady, context]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -273,7 +294,7 @@ export default function App() {
             className="bg-zinc-900 hover:bg-zinc-800 text-zinc-500 font-bold py-3 rounded-xl text-sm transition-colors"
           >
             Close App
-          </button>
+            </button>
         </div>
       </div>
     </div>
