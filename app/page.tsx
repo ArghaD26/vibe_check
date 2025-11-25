@@ -1,11 +1,12 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { useMiniKit } from "@coinbase/onchainkit/minikit";
+import { useMiniKit, useComposeCast } from "@coinbase/onchainkit/minikit";
 import { 
   Zap, 
   Activity, 
   ShieldCheck, 
-  Flame
+  Flame,
+  Share2
 } from 'lucide-react';
 
 // --- Types & Mock Data ---
@@ -194,6 +195,7 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
 // --- Main App Component ---
 export default function App() {
   const { isFrameReady, setFrameReady, context } = useMiniKit();
+  const { composeCastAsync } = useComposeCast();
   const [view, setView] = useState<ViewState>('splash');
   const [user, setUser] = useState<UserData>(MOCK_USER);
 
@@ -249,6 +251,35 @@ export default function App() {
       setUser(prev => ({ ...prev, streak: newStreak }));
     }
     setTimeout(() => setView('score'), 2500);
+  };
+
+  const handleShareScore = async () => {
+    try {
+      const scorePercent = (user.neynarScore * 100).toFixed(1);
+      const appUrl = process.env.NEXT_PUBLIC_URL || 'https://vibecheck-olive.vercel.app';
+      
+      // Create an engaging share message
+      const shareText = `My vibe score is ${scorePercent}% 🔥\n\nCheck your vibe score and see where you rank! 👇`;
+      
+      const result = await composeCastAsync({
+        text: shareText,
+        embeds: [appUrl]
+      });
+
+      // result.cast can be null if user cancels
+      if (result?.cast) {
+        console.log("Cast created successfully:", result.cast.hash);
+      } else {
+        console.log("User cancelled the cast");
+      }
+    } catch (error) {
+      console.error("Error sharing cast:", error);
+      // Fallback to clipboard if compose fails
+      const scorePercent = (user.neynarScore * 100).toFixed(1);
+      const shareText = `My vibe score is ${scorePercent}% 🔥\n\nCheck your vibe score: ${process.env.NEXT_PUBLIC_URL || 'https://vibecheck-olive.vercel.app'}`;
+      navigator.clipboard.writeText(shareText);
+      alert('Share text copied to clipboard!');
+    }
   };
 
 
@@ -307,6 +338,15 @@ export default function App() {
             <span className="font-bold text-emerald-400 tracking-wide text-sm">STATUS: {user.rank}</span>
           </div>
         </div>
+      </div>
+      <div className="p-6 pb-8">
+        <button
+          onClick={handleShareScore}
+          className="group w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-emerald-500/30"
+        >
+          <Share2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+          <span className="text-lg">Share My Vibe Score</span>
+        </button>
       </div>
     </div>
   );
