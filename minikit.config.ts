@@ -19,7 +19,7 @@ export const minikitConfig = {
     subtitle: "Check Your Signal Score", 
     description: "Track your Farcaster signal strength, growth stats, and daily vibe. Get insights into your followers, likes, and streak to understand your onchain presence.",
     screenshotUrls: [`${ROOT_URL}/screenshot-portrait.png`],
-    iconUrl: `${ROOT_URL}/blue-icon.png`,
+    iconUrl: `${ROOT_URL}/vibe_cat.jpg`,
     splashImageUrl: `${ROOT_URL}/blue-hero.png`,
     splashBackgroundColor: "#000000",
     homeUrl: ROOT_URL,
@@ -30,7 +30,7 @@ export const minikitConfig = {
     tagline: "Sync up and check your vibe",
     ogTitle: "Vibe Check - Check Your Signal Score",
     ogDescription: "Track your Farcaster signal strength, growth stats, and daily vibe. Get insights into your onchain presence.",
-    ogImageUrl: `${ROOT_URL}/blue-hero.png`,
+    ogImageUrl: `${ROOT_URL}/vibe_cat.jpg`,
   },
 } as const;
 
