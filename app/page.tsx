@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { useMiniKit } from "@coinbase/onchainkit/minikit";
+import { useMiniKit, useComposeCast } from "@coinbase/onchainkit/minikit";
 import { 
   Zap, 
   Activity, 
@@ -218,24 +218,44 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
     else if (neynarScore > 0.72) rank = "ELITE";
     else if (neynarScore > 0.58) rank = "STRONG";
 
-    // Get total follower count
-    const totalFollowers = user.follower_count || user.followers?.count || 0;
+    // Get total follower count - check multiple possible fields
+    const totalFollowers = user.follower_count || 
+                           user.followers?.count || 
+                           user.followers_count ||
+                           user.followerCount ||
+                           0;
+    console.log("📊 User object for followers:", {
+      follower_count: user.follower_count,
+      followers: user.followers,
+      allKeys: Object.keys(user)
+    });
     console.log("📊 Total followers from API:", totalFollowers);
     
     // Calculate account age in days
     let accountAgeDays = 0;
     try {
-      // Try to get account creation date from various possible fields
+      // Neynar API v2 typically has 'fid' and we can estimate from that
+      // Or check for registration/creation timestamps
       const createdAt = user.created_at || 
                        user.registered_at || 
                        user.registration_timestamp ||
-                       user.timestamp;
+                       user.timestamp ||
+                       user.verifications?.[0]?.timestamp;
+      
+      console.log("📅 Checking for creation date:", {
+        created_at: user.created_at,
+        registered_at: user.registered_at,
+        registration_timestamp: user.registration_timestamp,
+        timestamp: user.timestamp,
+        verifications: user.verifications
+      });
       
       if (createdAt) {
         // Handle both Unix timestamp (seconds or milliseconds) and ISO string
         let creationDate: Date;
         if (typeof createdAt === 'number') {
           // If it's a number, check if it's in seconds or milliseconds
+          // Timestamps > 1e12 are in milliseconds, < 1e12 are in seconds
           creationDate = new Date(createdAt > 1e12 ? createdAt : createdAt * 1000);
         } else if (typeof createdAt === 'string') {
           creationDate = new Date(createdAt);
@@ -243,20 +263,42 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
           creationDate = new Date(createdAt);
         }
         
-        const now = new Date();
-        const diffTime = Math.abs(now.getTime() - creationDate.getTime());
-        accountAgeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        console.log("📅 Account creation date:", creationDate);
-        console.log("📅 Account age in days:", accountAgeDays);
+        // Validate the date
+        if (!isNaN(creationDate.getTime())) {
+          const now = new Date();
+          const diffTime = Math.abs(now.getTime() - creationDate.getTime());
+          accountAgeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          console.log("📅 Account creation date:", creationDate);
+          console.log("📅 Account age in days:", accountAgeDays);
+        } else {
+          throw new Error("Invalid date");
+        }
       } else {
         console.warn("⚠️ No account creation date found in API response");
-        // Fallback: estimate based on FID (lower FID = older account, roughly)
-        // This is a rough estimate - FID 1 was created around Jan 2020
-        accountAgeDays = Math.max(1, Math.floor((Date.now() - new Date('2020-01-01').getTime()) / (1000 * 60 * 60 * 24)));
+        // Fallback: estimate based on FID (lower FID = older account)
+        // FID 1 was created around Jan 2020, so we can estimate
+        // Rough formula: days since 2020-01-01, adjusted by FID
+        const baseDate = new Date('2020-01-01').getTime();
+        const now = Date.now();
+        const daysSinceBase = Math.floor((now - baseDate) / (1000 * 60 * 60 * 24));
+        
+        // Lower FID = older account, but this is very rough
+        // For FID < 1000, assume account is ~2 years old
+        // For FID < 10000, assume account is ~1 year old
+        // For others, assume ~6 months
+        if (fid < 1000) {
+          accountAgeDays = Math.min(daysSinceBase, 730); // ~2 years max
+        } else if (fid < 10000) {
+          accountAgeDays = Math.min(daysSinceBase, 365); // ~1 year max
+        } else {
+          accountAgeDays = Math.min(daysSinceBase, 180); // ~6 months max
+        }
+        console.log("📅 Estimated account age from FID:", accountAgeDays, "days");
       }
     } catch (error) {
       console.error("❌ Error calculating account age:", error);
-      accountAgeDays = 0;
+      // Final fallback
+      accountAgeDays = 365; // Default to 1 year
     }
 
     // Get current streak (without updating - streak only updates on check-in)
@@ -304,6 +346,7 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
 // --- Main App Component ---
 export default function App() {
   const { isFrameReady, setFrameReady, context } = useMiniKit();
+  const { composeCastAsync } = useComposeCast();
   const [view, setView] = useState<ViewState>('splash');
   const [user, setUser] = useState<UserData>(MOCK_USER);
 
@@ -361,10 +404,29 @@ export default function App() {
     setTimeout(() => setView('score'), 2500);
   };
 
-  const handleShareStats = () => {
-    const text = `Vibe Check Stats 📊\n\n👥 ${user.totalFollowers} Followers\n📅 ${user.accountAgeDays} Days Old\n🔥 ${user.streak} Day Streak\n\nCheck your vibe 👇`;
-    navigator.clipboard.writeText(text);
-    alert('Stats copied to clipboard! (Simulating Share)');
+  const handleShareStats = async () => {
+    try {
+      const text = `Vibe Check Stats 📊\n\n👥 ${user.totalFollowers.toLocaleString()} Followers\n📅 ${user.accountAgeDays} Days Old\n🔥 ${user.streak} Day Streak\n\nCheck your vibe 👇`;
+      const appUrl = process.env.NEXT_PUBLIC_URL || 'https://vibecheck-olive.vercel.app';
+      
+      const result = await composeCastAsync({
+        text: text,
+        embeds: [appUrl]
+      });
+
+      // result.cast can be null if user cancels
+      if (result?.cast) {
+        console.log("Cast created successfully:", result.cast.hash);
+      } else {
+        console.log("User cancelled the cast");
+      }
+    } catch (error) {
+      console.error("Error sharing cast:", error);
+      // Fallback to clipboard if compose fails
+      const text = `Vibe Check Stats 📊\n\n👥 ${user.totalFollowers.toLocaleString()} Followers\n📅 ${user.accountAgeDays} Days Old\n🔥 ${user.streak} Day Streak\n\nCheck your vibe 👇`;
+      navigator.clipboard.writeText(text);
+      alert('Stats copied to clipboard!');
+    }
   };
 
   // --- Views ---
@@ -436,7 +498,7 @@ export default function App() {
     <div className="flex flex-col h-full bg-black text-white relative">
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
       <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
-        <h2 className="text-zinc-500 text-xs font-bold tracking-[0.2em] mb-6 uppercase">Yesterday&apos;s Vibe</h2>
+        <h2 className="text-zinc-500 text-xs font-bold tracking-[0.2em] mb-6 uppercase">Your Farcaster Vibe Stats</h2>
         {/* The Card Container */}
         <div className="bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 p-6 rounded-3xl w-full max-w-sm shadow-2xl">
           {/* 2x1 Grid */}
