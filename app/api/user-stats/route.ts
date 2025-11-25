@@ -43,8 +43,11 @@ async function fetchUserDataFromNeynar(fid: number) {
   }
 
   try {
-    // Fetch user profile from Neynar
-    const profileResponse = await fetch(
+    console.log(`Fetching Neynar data for FID: ${fid}`);
+    console.log(`API Key present: ${!!neynarApiKey}, length: ${neynarApiKey?.length}`);
+    
+    // Fetch user profile from Neynar - try v2 first, fallback to v1
+    let profileResponse = await fetch(
       `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
       {
         headers: {
@@ -54,36 +57,68 @@ async function fetchUserDataFromNeynar(fid: number) {
       }
     );
 
+    // If v2 fails, try v1
+    if (!profileResponse.ok && profileResponse.status === 404) {
+      console.log("v2 endpoint failed, trying v1...");
+      profileResponse = await fetch(
+        `https://api.neynar.com/v1/farcaster/user?fid=${fid}`,
+        {
+          headers: {
+            "api_key": neynarApiKey,
+            "accept": "application/json",
+          },
+        }
+      );
+    }
+
     if (!profileResponse.ok) {
+      const errorText = await profileResponse.text();
+      console.error(`Neynar API error (${profileResponse.status}):`, errorText);
       throw new Error(`Neynar API error: ${profileResponse.statusText}`);
     }
 
     const profileData = await profileResponse.json();
-    const user = profileData.users?.[0];
+    console.log("Neynar profile data:", JSON.stringify(profileData, null, 2));
+    
+    // Handle different possible response structures
+    const user = profileData.users?.[0] || profileData.result?.user || profileData.user;
 
     if (!user) {
+      console.warn("No user found in Neynar response. Full response:", profileData);
       return null;
     }
 
-    // Fetch user stats/casts for engagement metrics
-    const castsResponse = await fetch(
-      `https://api.neynar.com/v2/farcaster/cast/user?fid=${fid}&limit=100`,
-      {
-        headers: {
-          "api_key": neynarApiKey,
-          "accept": "application/json",
-        },
-      }
-    );
+    console.log("Found user:", user.username || user.display_name);
 
+    // Fetch user stats/casts for engagement metrics
     let likesReceived = 0;
-    const followersCount = user.follower_count || 0;
+    const followersCount = user.follower_count || user.followers?.count || 0;
     
-    if (castsResponse.ok) {
-      const castsData = await castsResponse.json();
-      const casts = castsData.result?.casts || [];
-      likesReceived = casts.reduce((sum: number, cast: { reactions?: { likes?: unknown[] } }) => 
-        sum + (cast.reactions?.likes?.length || 0), 0);
+    try {
+      const castsResponse = await fetch(
+        `https://api.neynar.com/v2/farcaster/cast/user?fid=${fid}&limit=100`,
+        {
+          headers: {
+            "api_key": neynarApiKey,
+            "accept": "application/json",
+          },
+        }
+      );
+
+      if (castsResponse.ok) {
+        const castsData = await castsResponse.json();
+        const casts = castsData.result?.casts || castsData.casts || [];
+        likesReceived = casts.reduce((sum: number, cast: { reactions?: { likes?: unknown[] }; like_count?: number }) => {
+          const likes = cast.reactions?.likes?.length || cast.like_count || 0;
+          return sum + likes;
+        }, 0);
+        console.log(`Calculated likes received: ${likesReceived} from ${casts.length} casts`);
+      } else {
+        console.warn("Failed to fetch casts, status:", castsResponse.status);
+      }
+    } catch (castError) {
+      console.warn("Error fetching casts:", castError);
+      // Continue without cast data
     }
 
     // Calculate Neynar score (this is a placeholder - adjust based on actual Neynar scoring)
@@ -154,41 +189,67 @@ async function fetchUserDataFromFarcaster(fid: number) {
 }
 
 export async function GET(request: NextRequest) {
+  console.log("=== User Stats API Called ===");
   const authorization = request.headers.get("Authorization");
+  console.log("Authorization header present:", !!authorization);
 
   if (!authorization || !authorization.startsWith("Bearer ")) {
-    return NextResponse.json({ message: "Missing token" }, { status: 401 });
+    console.error("Missing or invalid authorization header");
+    return NextResponse.json({ 
+      success: false,
+      message: "Missing token" 
+    }, { status: 401 });
   }
 
   try {
+    const domain = getUrlHost(request);
+    console.log("Verifying JWT for domain:", domain);
+    
     const payload = await client.verifyJwt({
       token: authorization.split(" ")[1] as string,
-      domain: getUrlHost(request),
+      domain: domain,
     });
 
+    console.log("JWT verified, payload:", payload);
     const userFid = typeof payload.sub === 'string' ? parseInt(payload.sub) : payload.sub;
+    console.log("User FID:", userFid);
 
     // Try to fetch from Neynar first, then fallback to Farcaster
+    console.log("Attempting to fetch from Neynar...");
     let userData = await fetchUserDataFromNeynar(userFid);
     
     if (!userData) {
+      console.log("Neynar fetch failed, trying Farcaster fallback...");
       userData = await fetchUserDataFromFarcaster(userFid);
     }
 
     if (!userData) {
+      console.error("Failed to fetch user data from both Neynar and Farcaster");
+      // Return a response with success: false so frontend knows it failed
       return NextResponse.json(
-        { message: "Unable to fetch user data" },
-        { status: 500 }
+        { 
+          success: false,
+          message: "Unable to fetch user data",
+          error: "Both Neynar and Farcaster APIs failed",
+          fid: userFid
+        },
+        { status: 200 } // Return 200 so useQuickAuth doesn't treat it as an error
       );
     }
 
+    console.log("Successfully fetched user data:", userData);
     return NextResponse.json({
       success: true,
       user: userData,
     });
   } catch (e) {
+    console.error("Error in user-stats route:", e);
     if (e instanceof Error) {
-      return NextResponse.json({ message: e.message }, { status: 500 });
+      return NextResponse.json({ 
+        success: false,
+        message: e.message,
+        error: e.stack
+      }, { status: 200 }); // Return 200 so frontend can handle it
     }
     throw e;
   }

@@ -113,16 +113,32 @@ export default function App() {
   }, [setFrameReady, isFrameReady]);
 
   // Fetch real user data using useQuickAuth for authenticated requests
-  const { data: userStatsData, isLoading: isStatsLoading } = useQuickAuth<{
+  const { data: userStatsData, isLoading: isStatsLoading, error: userStatsError } = useQuickAuth<{
     success: boolean;
     user?: UserData;
   }>("/api/user-stats", { method: "GET" });
 
   useEffect(() => {
-    if (!isStatsLoading && userStatsData?.success && userStatsData.user) {
-      setUser(userStatsData.user);
+    console.log("=== User Stats Effect ===");
+    console.log("isStatsLoading:", isStatsLoading);
+    console.log("userStatsError:", userStatsError);
+    console.log("userStatsData:", userStatsData);
+    
+    if (userStatsError) {
+      console.error("❌ Error fetching user stats:", userStatsError);
     }
-  }, [userStatsData, isStatsLoading]);
+    
+    if (!isStatsLoading) {
+      if (userStatsData?.success && userStatsData.user) {
+        console.log("✅ Loaded real user data:", userStatsData.user);
+        setUser(userStatsData.user);
+      } else {
+        console.warn("⚠️ No user data received, using mock data.");
+        console.warn("Response:", userStatsData);
+        // Keep using mock data
+      }
+    }
+  }, [userStatsData, isStatsLoading, userStatsError]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
