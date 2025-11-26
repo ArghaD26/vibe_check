@@ -390,17 +390,17 @@ export default function App() {
               What Hurts Your Score
             </h2>
             <p className="text-zinc-300 leading-relaxed">
-              Liking many posts at the same time doesn't help your Neynar score—it actually hurts your account quality.
+              Liking many posts at the same time doesn&apos;t help your Neynar score—it actually hurts your account quality.
             </p>
           </div>
 
           <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-5">
-            <h3 className="text-base font-bold text-yellow-400 mb-2">The Neynar algorithm doesn't support spam liking. It can:</h3>
+            <h3 className="text-base font-bold text-yellow-400 mb-2">The Neynar algorithm doesn&apos;t support spam liking. It can:</h3>
             <ul className="space-y-2 text-zinc-300 list-disc list-inside">
               <li>Flag your account</li>
               <li>Lower your score</li>
               <li>Make your engagement look fake</li>
-              <li>Even get you blocked by people you're trying to support</li>
+              <li>Even get you blocked by people you&apos;re trying to support</li>
             </ul>
           </div>
 
@@ -424,7 +424,7 @@ export default function App() {
               </li>
               <li className="flex items-start gap-3">
                 <span className="text-emerald-400 font-bold mt-1">•</span>
-                <span>Don't rush — growth takes time</span>
+                <span>Don&apos;t rush — growth takes time</span>
               </li>
             </ul>
           </div>
