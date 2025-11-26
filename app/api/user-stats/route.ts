@@ -90,7 +90,21 @@ async function fetchUserDataFromNeynar(fid: number) {
 
     console.log("Found user:", user.username || user.display_name);
     console.log("User object keys:", Object.keys(user));
-    console.log("Full user object:", JSON.stringify(user, null, 2));
+    
+    // Log experimental_features specifically to debug score location
+    if (user.experimental_features) {
+      console.log("🔬 Experimental features:", JSON.stringify(user.experimental_features, null, 2));
+    } else {
+      console.log("⚠️ No experimental_features found in user object");
+    }
+    
+    // Log full user object (but truncate if too large)
+    const userStr = JSON.stringify(user, null, 2);
+    if (userStr.length > 5000) {
+      console.log("Full user object (truncated):", userStr.substring(0, 5000) + "...");
+    } else {
+      console.log("Full user object:", userStr);
+    }
 
     // Get follower count - Neynar API v2 returns follower_count directly
     const totalFollowers = user.follower_count || 
@@ -100,14 +114,35 @@ async function fetchUserDataFromNeynar(fid: number) {
     console.log("📊 Total followers from Neynar API:", totalFollowers);
 
     // Get Neynar score from experimental features or calculate it
+    // Neynar API might return score as 0-1 (decimal) or 0-100 (percentage)
     let neynarScore = user.experimental_features?.neynar_score || 
+                     user.experimental_features?.score ||
                      user.neynar_score || 
                      user.score || 
-                     0.5; // Default to 0.5 if missing
+                     null;
+    
+    console.log("🔍 Raw score from API:", {
+      experimental_features: user.experimental_features,
+      neynar_score: user.neynar_score,
+      score: user.score,
+      rawValue: neynarScore
+    });
+    
+    // If score is missing, return null instead of defaulting
+    if (neynarScore === null || neynarScore === undefined) {
+      console.warn("⚠️ No Neynar score found in API response");
+      return null; // Don't return fake data
+    }
+    
+    // Convert to 0-1 range if it's in 0-100 range
+    if (neynarScore > 1) {
+      console.log("📊 Score appears to be in 0-100 format, converting to 0-1");
+      neynarScore = neynarScore / 100;
+    }
     
     // Ensure score is between 0 and 1
     neynarScore = Math.max(0, Math.min(1, neynarScore));
-    console.log("⭐ Neynar score:", neynarScore);
+    console.log("⭐ Final Neynar score (0-1):", neynarScore, `(${(neynarScore * 100).toFixed(1)}%)`);
 
     // Calculate account age in days from created_at timestamp
     let accountAgeDays = 0;

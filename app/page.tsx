@@ -167,6 +167,12 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
 
     const apiUser = data.user;
 
+    // Validate the score is reasonable (not mock data)
+    if (apiUser.neynarScore > 0.99) {
+      console.warn("⚠️ Suspiciously high score detected:", apiUser.neynarScore);
+      console.warn("⚠️ This might be mock/fallback data. Verifying API response...");
+    }
+
     // Get current streak (without updating - streak only updates on check-in)
     const streak = getCurrentStreak(fid);
     
@@ -177,8 +183,8 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
       : 0;
     const scoreDelta = prevScore > 0 ? apiUser.neynarScore - prevScore : 0;
     
-    // Store current score for next time
-    if (typeof window !== 'undefined') {
+    // Store current score for next time (only if it's valid)
+    if (typeof window !== 'undefined' && apiUser.neynarScore > 0 && apiUser.neynarScore <= 1) {
       localStorage.setItem(prevScoreKey, apiUser.neynarScore.toString());
     }
 
@@ -206,11 +212,16 @@ export default function App() {
   const { isFrameReady, setFrameReady, context } = useMiniKit();
   const { composeCastAsync } = useComposeCast();
   const [view, setView] = useState<ViewState>('splash');
-  const [user, setUser] = useState<UserData>(MOCK_USER);
+  const [user, setUser] = useState<UserData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Initialize the miniapp and fetch real user data
   useEffect(() => {
     const initializeAndFetchData = async () => {
+      setIsLoading(true);
+      setApiError(null);
+      
       // Initialize the frame
       if (!isFrameReady) {
         setFrameReady();
@@ -236,9 +247,21 @@ export default function App() {
       
       if (userData) {
         console.log("✅ Loaded real user data:", userData);
+        console.log("📊 Score:", userData.neynarScore, `(${(userData.neynarScore * 100).toFixed(1)}%)`);
+        
+        // Validate score is reasonable (not mock data)
+        if (userData.neynarScore >= 0.998) {
+          console.warn("⚠️ WARNING: Score is suspiciously high (99.8%). This might be incorrect data.");
+          setApiError("Score appears incorrect. Please refresh.");
+        }
+        
         setUser(userData);
+        setIsLoading(false);
       } else {
-        console.warn("⚠️ Failed to fetch user data, using mock data");
+        console.error("❌ Failed to fetch user data from API");
+        setApiError("Failed to load your vibe score. Please try again.");
+        setIsLoading(false);
+        // Don't set user - will show error state
       }
     };
 
@@ -253,16 +276,18 @@ export default function App() {
   }, []);
 
   const handleCheckIn = () => {
+    if (!user) return;
     setView('scanning');
     // Update streak when user checks in
     if (user.fid) {
       const newStreak = updateStreak(user.fid);
-      setUser(prev => ({ ...prev, streak: newStreak }));
+      setUser(prev => prev ? { ...prev, streak: newStreak } : null);
     }
     setTimeout(() => setView('score'), 2500);
   };
 
   const handleShareScore = async () => {
+    if (!user) return;
     try {
       const scorePercent = (user.neynarScore * 100).toFixed(1);
       const appUrl = process.env.NEXT_PUBLIC_URL || 'https://vibecheck-olive.vercel.app';
@@ -284,6 +309,7 @@ export default function App() {
     } catch (error) {
       console.error("Error sharing cast:", error);
       // Fallback to clipboard if compose fails
+      if (!user) return;
       const scorePercent = (user.neynarScore * 100).toFixed(1);
       const shareText = `My vibe score is ${scorePercent}% 🔥\n\nCheck your vibe score: ${process.env.NEXT_PUBLIC_URL || 'https://vibecheck-olive.vercel.app'}`;
       navigator.clipboard.writeText(shareText);
@@ -303,18 +329,44 @@ export default function App() {
     </div>
   );
 
-  const renderCheckIn = () => (
-    <div className="flex flex-col h-full bg-zinc-950 text-white relative overflow-hidden">
-      <div className="flex justify-between items-center p-6 z-10">
-        <div className="flex items-center gap-2 bg-zinc-900/50 border border-zinc-800 px-3 py-1.5 rounded-full">
-          <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
-          <span className="text-xs font-bold text-zinc-300">{user.streak} Day Streak</span>
+  const renderCheckIn = () => {
+    if (!user) {
+      return (
+        <div className="flex flex-col h-full bg-zinc-950 text-white items-center justify-center p-6">
+          {isLoading ? (
+            <div className="text-center space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto"></div>
+              <p className="text-zinc-400">Loading your vibe score...</p>
+            </div>
+          ) : (
+            <div className="text-center space-y-4">
+              <div className="text-red-400 text-4xl mb-4">⚠️</div>
+              <h2 className="text-xl font-bold text-red-400">Failed to Load Data</h2>
+              <p className="text-zinc-400 text-sm">{apiError || "Unable to fetch your vibe score"}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 px-6 py-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-lg"
+              >
+                Retry
+              </button>
+            </div>
+          )}
         </div>
-      </div>
-      <div className="flex-1 flex flex-col items-center justify-center z-10 p-6 text-center mt-[-40px]">
-        <h2 className="text-zinc-500 font-bold tracking-widest text-xs mb-4">
-          GOOD MORNING, @{(context?.user?.displayName || user.username || "THERE").toUpperCase()}
-        </h2>
+      );
+    }
+    
+    return (
+      <div className="flex flex-col h-full bg-zinc-950 text-white relative overflow-hidden">
+        <div className="flex justify-between items-center p-6 z-10">
+          <div className="flex items-center gap-2 bg-zinc-900/50 border border-zinc-800 px-3 py-1.5 rounded-full">
+            <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
+            <span className="text-xs font-bold text-zinc-300">{user.streak} Day Streak</span>
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center z-10 p-6 text-center mt-[-40px]">
+          <h2 className="text-zinc-500 font-bold tracking-widest text-xs mb-4">
+            GOOD MORNING, @{(context?.user?.displayName || user.username || "THERE").toUpperCase()}
+          </h2>
         <h1 className="text-5xl font-black leading-none tracking-tight mb-6">
           READY TO<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">SYNC UP?</span>
         </h1>
@@ -337,17 +389,48 @@ export default function App() {
     </div>
   );
 
-  const renderScore = () => (
-    <div className="flex flex-col h-full bg-zinc-950 text-white">
-      <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
-        <div className="mb-8"><ScoreGauge score={user.neynarScore} /></div>
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-lg">
-            <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            <span className="font-bold text-emerald-400 tracking-wide text-sm">TIER: {user.rank}</span>
+  const renderScore = () => {
+    if (!user) {
+      return (
+        <div className="flex flex-col h-full bg-zinc-950 text-white items-center justify-center p-6">
+          {isLoading ? (
+            <div className="text-center space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto"></div>
+              <p className="text-zinc-400">Loading your vibe score...</p>
+            </div>
+          ) : (
+            <div className="text-center space-y-4">
+              <div className="text-red-400 text-4xl mb-4">⚠️</div>
+              <h2 className="text-xl font-bold text-red-400">Failed to Load Data</h2>
+              <p className="text-zinc-400 text-sm">{apiError || "Unable to fetch your vibe score"}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 px-6 py-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-lg"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    return (
+      <div className="flex flex-col h-full bg-zinc-950 text-white">
+        {apiError && (
+          <div className="bg-yellow-900/40 border-b border-yellow-700/50 p-3 text-center">
+            <p className="text-yellow-400 text-sm">{apiError}</p>
+          </div>
+        )}
+        <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
+          <div className="mb-8"><ScoreGauge score={user.neynarScore} /></div>
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-lg">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              <span className="font-bold text-emerald-400 tracking-wide text-sm">TIER: {user.rank}</span>
+            </div>
           </div>
         </div>
-      </div>
       <div className="p-6 pb-8 space-y-3">
         <button
           onClick={handleShareScore}
