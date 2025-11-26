@@ -6,11 +6,14 @@ import {
   Activity, 
   ShieldCheck, 
   Flame,
-  Share2
+  Share2,
+  ArrowRight,
+  Lightbulb,
+  X
 } from 'lucide-react';
 
 // --- Types & Mock Data ---
-type ViewState = 'splash' | 'checkin' | 'scanning' | 'score';
+type ViewState = 'splash' | 'checkin' | 'scanning' | 'score' | 'tips';
 
 interface UserData {
   username: string;
@@ -345,13 +348,102 @@ export default function App() {
           </div>
         </div>
       </div>
-      <div className="p-6 pb-8">
+      <div className="p-6 pb-8 space-y-3">
         <button
           onClick={handleShareScore}
           className="group w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-emerald-500/30"
         >
           <Share2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
           <span className="text-lg">Share My Vibe Score</span>
+        </button>
+        <button
+          onClick={() => setView('tips')}
+          className="group w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95"
+        >
+          <Lightbulb className="w-5 h-5 text-yellow-400" />
+          <span className="text-lg">How to Improve Your Vibe Score</span>
+          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderTips = () => (
+    <div className="flex flex-col h-full bg-zinc-950 text-white overflow-y-auto">
+      {/* Header with back button */}
+      <div className="sticky top-0 bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-800 p-4 flex items-center justify-between z-10">
+        <h1 className="text-xl font-black tracking-tight">How to Improve Your Vibe Score</h1>
+        <button
+          onClick={() => setView('score')}
+          className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 p-6 space-y-6">
+        <div className="space-y-4">
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-5">
+            <h2 className="text-lg font-bold text-red-400 mb-3 flex items-center gap-2">
+              <span className="text-2xl">⚠️</span>
+              What Hurts Your Score
+            </h2>
+            <p className="text-zinc-300 leading-relaxed">
+              Liking many posts at the same time doesn't help your Neynar score—it actually hurts your account quality.
+            </p>
+          </div>
+
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-5">
+            <h3 className="text-base font-bold text-yellow-400 mb-2">The Neynar algorithm doesn't support spam liking. It can:</h3>
+            <ul className="space-y-2 text-zinc-300 list-disc list-inside">
+              <li>Flag your account</li>
+              <li>Lower your score</li>
+              <li>Make your engagement look fake</li>
+              <li>Even get you blocked by people you're trying to support</li>
+            </ul>
+          </div>
+
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5">
+            <h2 className="text-lg font-bold text-emerald-400 mb-3 flex items-center gap-2">
+              <span className="text-2xl">✨</span>
+              To Grow the Right Way
+            </h2>
+            <ul className="space-y-3 text-zinc-300">
+              <li className="flex items-start gap-3">
+                <span className="text-emerald-400 font-bold mt-1">•</span>
+                <span>Engage slowly and genuinely</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-emerald-400 font-bold mt-1">•</span>
+                <span>Read the post before you like it</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-emerald-400 font-bold mt-1">•</span>
+                <span>Leave a real comment that shows you understand</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-emerald-400 font-bold mt-1">•</span>
+                <span>Don't rush — growth takes time</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-5">
+            <p className="text-zinc-200 leading-relaxed italic">
+              This is how you build a true Base posting mindset: not by fast engagement, but by showing real presence and intention.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer button */}
+      <div className="p-6 pt-4 border-t border-zinc-800">
+        <button
+          onClick={() => setView('score')}
+          className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl transition-all active:scale-95"
+        >
+          Back to Score
         </button>
       </div>
     </div>
@@ -364,6 +456,7 @@ export default function App() {
       {view === 'checkin' && renderCheckIn()}
       {view === 'scanning' && renderScanning()}
       {view === 'score' && renderScore()}
+      {view === 'tips' && renderTips()}
     </div>
   );
 }
