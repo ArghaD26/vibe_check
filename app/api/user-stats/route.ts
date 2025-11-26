@@ -125,7 +125,8 @@ async function fetchUserDataFromNeynar(fid: number) {
       experimental_features: user.experimental_features,
       neynar_score: user.neynar_score,
       score: user.score,
-      rawValue: neynarScore
+      rawValue: neynarScore,
+      rawType: typeof neynarScore
     });
     
     // If score is missing, return null instead of defaulting
@@ -134,14 +135,57 @@ async function fetchUserDataFromNeynar(fid: number) {
       return null; // Don't return fake data
     }
     
+    // Validate score is a number
+    if (typeof neynarScore !== 'number' || isNaN(neynarScore)) {
+      console.error("❌ Invalid score type or NaN:", neynarScore);
+      return null;
+    }
+    
     // Convert to 0-1 range if it's in 0-100 range
-    if (neynarScore > 1) {
+    // Neynar scores are typically in 0-100 range, but check carefully
+    if (neynarScore > 1 && neynarScore <= 100) {
       console.log("📊 Score appears to be in 0-100 format, converting to 0-1");
       neynarScore = neynarScore / 100;
+    } else if (neynarScore > 100) {
+      // If score is > 100, it's definitely wrong - reject it
+      console.error("❌ Score is > 100, which is invalid:", neynarScore);
+      return null;
+    } else if (neynarScore < 0) {
+      // Negative scores are invalid
+      console.error("❌ Score is negative, which is invalid:", neynarScore);
+      return null;
     }
+    
+    // Store original raw score for validation
+    const originalRawScore = neynarScore;
     
     // Ensure score is between 0 and 1
     neynarScore = Math.max(0, Math.min(1, neynarScore));
+    
+    // Additional validation: Reject suspiciously high scores (> 0.95) unless from reliable source
+    // Real Neynar scores rarely exceed 0.95 (95%), so scores > 0.95 are likely errors
+    if (neynarScore > 0.95) {
+      console.warn("⚠️ WARNING: Score is suspiciously high (>95%):", neynarScore);
+      console.warn("⚠️ This might be incorrect data. Checking score source...");
+      
+      // Check if score came from experimental_features (most reliable source)
+      const fromExperimentalFeatures = !!(user.experimental_features?.neynar_score || 
+                                         user.experimental_features?.score);
+      
+      if (!fromExperimentalFeatures) {
+        console.error("❌ High score (>95%) not from experimental_features, likely incorrect. Rejecting.");
+        console.error("❌ Raw score was:", originalRawScore, "from source:", {
+          experimental_neynar_score: user.experimental_features?.neynar_score,
+          experimental_score: user.experimental_features?.score,
+          neynar_score: user.neynar_score,
+          score: user.score
+        });
+        return null;
+      } else {
+        console.log("✅ High score confirmed from experimental_features, accepting:", neynarScore);
+      }
+    }
+    
     console.log("⭐ Final Neynar score (0-1):", neynarScore, `(${(neynarScore * 100).toFixed(1)}%)`);
 
     // Calculate account age in days from created_at timestamp

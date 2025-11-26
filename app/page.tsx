@@ -26,16 +26,7 @@ interface UserData {
   accountAgeDays: number; // Account age in days
 }
 
-const MOCK_USER: UserData = {
-  username: 'dwr.eth',
-  fid: 3,
-  streak: 15,
-  neynarScore: 0.998,
-  scoreDelta: 0.002,
-  rank: 'LEGENDARY',
-  totalFollowers: 1250,
-  accountAgeDays: 365,
-};
+// MOCK_USER removed - we now use null state and fetch real data
 
 
 // --- Helper Components ---
@@ -167,10 +158,18 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
 
     const apiUser = data.user;
 
-    // Validate the score is reasonable (not mock data)
-    if (apiUser.neynarScore > 0.99) {
+    // Validate the score is reasonable (not mock data or error)
+    if (apiUser.neynarScore > 0.95) {
       console.warn("⚠️ Suspiciously high score detected:", apiUser.neynarScore);
-      console.warn("⚠️ This might be mock/fallback data. Verifying API response...");
+      console.warn("⚠️ Scores > 95% are very rare. This might be incorrect data.");
+      // Don't reject it here - let the backend validation handle it
+      // But log it for debugging
+    }
+    
+    // Additional validation: reject clearly invalid scores
+    if (apiUser.neynarScore < 0 || apiUser.neynarScore > 1 || isNaN(apiUser.neynarScore)) {
+      console.error("❌ Invalid score value:", apiUser.neynarScore);
+      return null;
     }
 
     // Get current streak (without updating - streak only updates on check-in)
@@ -223,9 +222,9 @@ export default function App() {
       setApiError(null);
       
       // Initialize the frame
-      if (!isFrameReady) {
-        setFrameReady();
-      }
+    if (!isFrameReady) {
+      setFrameReady();
+    }
 
       // Wait a bit for frame to be ready
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -249,10 +248,20 @@ export default function App() {
         console.log("✅ Loaded real user data:", userData);
         console.log("📊 Score:", userData.neynarScore, `(${(userData.neynarScore * 100).toFixed(1)}%)`);
         
-        // Validate score is reasonable (not mock data)
-        if (userData.neynarScore >= 0.998) {
-          console.warn("⚠️ WARNING: Score is suspiciously high (99.8%). This might be incorrect data.");
-          setApiError("Score appears incorrect. Please refresh.");
+        // Validate score is reasonable (not mock data or error)
+        if (userData.neynarScore >= 0.95) {
+          console.warn("⚠️ WARNING: Score is suspiciously high (≥95%). This might be incorrect data.");
+          // Show error but still display the data (user can decide)
+          setApiError("Warning: Score seems unusually high. If incorrect, please refresh.");
+        }
+        
+        // Reject clearly invalid scores
+        if (userData.neynarScore < 0 || userData.neynarScore > 1 || isNaN(userData.neynarScore)) {
+          console.error("❌ Invalid score, rejecting:", userData.neynarScore);
+          setApiError("Invalid score data received. Please try again.");
+          setUser(null);
+          setIsLoading(false);
+          return;
         }
         
         setUser(userData);
@@ -450,7 +459,8 @@ export default function App() {
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderTips = () => (
     <div className="flex flex-col h-full bg-zinc-950 text-white overflow-y-auto">
@@ -462,7 +472,7 @@ export default function App() {
           className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
         >
           <X className="w-5 h-5" />
-        </button>
+      </button>
       </div>
 
       {/* Content */}
@@ -517,8 +527,8 @@ export default function App() {
             <p className="text-zinc-200 leading-relaxed italic">
               This is how you build a true Base posting mindset: not by fast engagement, but by showing real presence and intention.
             </p>
-          </div>
         </div>
+      </div>
       </div>
 
       {/* Footer button */}
