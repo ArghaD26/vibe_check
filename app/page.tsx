@@ -375,10 +375,11 @@ export default function App() {
         <button onClick={handleCheckIn} className="group w-full bg-white hover:bg-zinc-200 text-black h-16 rounded-2xl font-black text-xl flex items-center justify-center gap-3 transition-all active:scale-95">
           <Activity className="w-6 h-6 group-hover:rotate-12 transition-transform" />
           <span>CHECK VIBE</span>
-            </button>
+        </button>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderScanning = () => (
     <div className="flex flex-col items-center justify-center h-full bg-black text-white">
