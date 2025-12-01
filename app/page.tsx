@@ -302,7 +302,7 @@ export default function App() {
       const appUrl = process.env.NEXT_PUBLIC_URL || 'https://vibecheck-olive.vercel.app';
       
       // Create an engaging share message
-      const shareText = `My vibe score is ${scorePercent}% 🔥\n\nCheck your vibe score and see where you rank! 👇`;
+      const shareText = `My neynar score is ${scorePercent}% 🔥\n\nCheck your neynar score and see where you rank! 👇`;
       
       const result = await composeCastAsync({
         text: shareText,
@@ -320,7 +320,7 @@ export default function App() {
       // Fallback to clipboard if compose fails
       if (!user) return;
       const scorePercent = (user.neynarScore * 100).toFixed(1);
-      const shareText = `My vibe score is ${scorePercent}% 🔥\n\nCheck your vibe score: ${process.env.NEXT_PUBLIC_URL || 'https://vibecheck-olive.vercel.app'}`;
+      const shareText = `My neynar score is ${scorePercent}% 🔥\n\nCheck your neynar score: ${process.env.NEXT_PUBLIC_URL || 'https://vibecheck-olive.vercel.app'}`;
       navigator.clipboard.writeText(shareText);
       alert('Share text copied to clipboard!');
     }
