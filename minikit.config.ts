@@ -28,7 +28,7 @@ export const minikitConfig = {
     homeUrl: ROOT_URL,
     webhookUrl: `${ROOT_URL}/api/webhook`,
     primaryCategory: "social",
-    tags: ["social", "analytics", "farcaster", "signal", "stats", "growth"],
+    tags: ["social", "neynar", "base", "farcaster", "stats", "baseapp"],
     heroImageUrl: `${ROOT_URL}/vibe_check_logo.jpg`, 
     tagline: "Sync up and check your vibe",
     ogTitle: "Vibe Check - Check Your Vibe Score",
