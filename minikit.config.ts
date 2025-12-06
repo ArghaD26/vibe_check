@@ -31,7 +31,7 @@ export const minikitConfig = {
     tags: ["social", "neynar", "base", "farcaster", "stats", "baseapp"],
     heroImageUrl: `${ROOT_URL}/vibe_check_logo.jpg`, 
     tagline: "Sync up and check your vibe",
-    ogTitle: "Vibe Check - Check Your Vibe Score",
+    ogTitle: "Vibe Check - Neynar Score",
     ogDescription: "Track your Farcaster vibe score and see where you rank. Check your vibe and share your score!",
     ogImageUrl: `${ROOT_URL}/vibe_check_logo.jpg`,
   },
