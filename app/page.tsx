@@ -245,7 +245,7 @@ export default function App() {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [_showOnboarding, setShowOnboarding] = useState(false);
 
   // Initialize the miniapp and fetch real user data
   useEffect(() => {
@@ -404,7 +404,7 @@ export default function App() {
               How to Get Started
             </h2>
             <p className="text-zinc-300 text-sm leading-relaxed">
-              Tap "Check Vibe" to analyze your score. Check in daily to build your streak and improve your ranking.
+              Tap &quot;Check Vibe&quot; to analyze your score. Check in daily to build your streak and improve your ranking.
             </p>
           </div>
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
