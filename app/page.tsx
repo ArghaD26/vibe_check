@@ -491,7 +491,7 @@ export default function App() {
           READY TO<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">SYNC UP?</span>
         </h1>
       </div>
-      <div className="p-6 z-10">
+      <div className="p-6 pb-24 z-10">
         <button onClick={handleCheckIn} className="group w-full bg-white dark:bg-white hover:bg-zinc-200 dark:hover:bg-zinc-200 text-black h-16 rounded-2xl font-black text-xl flex items-center justify-center gap-3 transition-all active:scale-95 min-h-[44px]">
           <Activity className="w-6 h-6 group-hover:rotate-12 transition-transform" />
           <span>CHECK VIBE</span>
@@ -562,7 +562,7 @@ export default function App() {
             </div>
           </div>
         </div>
-      <div className="p-6 pb-8 space-y-3">
+      <div className="p-6 pb-24 space-y-3">
         <button
           onClick={handleShareScore}
           className="group w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-emerald-500/30 min-h-[44px]"
