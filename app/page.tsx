@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useMiniKit, useComposeCast } from "@coinbase/onchainkit/minikit";
 import { 
   Zap, 
@@ -9,11 +10,14 @@ import {
   Share2,
   ArrowRight,
   Lightbulb,
-  X
+  X,
+  Home,
+  BarChart3,
+  Info
 } from 'lucide-react';
 
 // --- Types & Mock Data ---
-type ViewState = 'splash' | 'checkin' | 'scanning' | 'score' | 'tips';
+type ViewState = 'splash' | 'onboarding' | 'checkin' | 'scanning' | 'score' | 'tips';
 
 interface UserData {
   username: string;
@@ -131,15 +135,36 @@ function updateStreak(fid: number): number {
 
 // Fetch user data from server-side API route (keeps API keys secure)
 async function fetchUserData(fid: number): Promise<UserData | null> {
+  // Check cache first (5 minute cache)
+  const cacheKey = `vibe_check_user_${fid}`;
+  const cacheTimestampKey = `vibe_check_user_${fid}_timestamp`;
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+  
+  if (typeof window !== 'undefined') {
+    const cachedData = localStorage.getItem(cacheKey);
+    const cachedTimestamp = localStorage.getItem(cacheTimestampKey);
+    
+    if (cachedData && cachedTimestamp) {
+      const age = Date.now() - parseInt(cachedTimestamp, 10);
+      if (age < CACHE_DURATION) {
+        console.log(`Using cached user data for FID: ${fid} (age: ${Math.round(age / 1000)}s)`);
+        return JSON.parse(cachedData);
+      }
+    }
+  }
+  
   try {
     console.log(`Fetching user data for FID: ${fid} from API route`);
     
     // Call our server-side API route with FID as query parameter
-    const response = await fetch(`/api/user-stats?fid=${fid}`, {
+    // Add version query param to force cache refresh
+    const version = Date.now();
+    const response = await fetch(`/api/user-stats?fid=${fid}&v=${version}`, {
       method: "GET",
       headers: {
         "accept": "application/json",
       },
+      cache: 'no-store', // Force fresh fetch
     });
 
     if (!response.ok) {
@@ -198,6 +223,12 @@ async function fetchUserData(fid: number): Promise<UserData | null> {
       accountAgeDays: apiUser.accountAgeDays,
     };
 
+    // Cache the user data
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(cacheKey, JSON.stringify(userData));
+      localStorage.setItem(cacheTimestampKey, Date.now().toString());
+    }
+
     console.log("✅ Final user data:", userData);
     return userData;
   } catch (error) {
@@ -214,6 +245,7 @@ export default function App() {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Initialize the miniapp and fetch real user data
   useEffect(() => {
@@ -226,8 +258,10 @@ export default function App() {
       setFrameReady();
     }
 
-      // Wait a bit for frame to be ready
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Small delay only if frame is not ready yet
+      if (!isFrameReady) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
 
       // Get user FID from context
       let userFid: number;
@@ -278,11 +312,29 @@ export default function App() {
   }, [isFrameReady, setFrameReady, context]);
 
   useEffect(() => {
+    // Check if user has seen onboarding before
+    const hasSeenOnboarding = typeof window !== 'undefined' 
+      ? localStorage.getItem('vibe_check_onboarding_seen') === 'true'
+      : false;
+    
     const timer = setTimeout(() => {
-      setView('checkin');
+      if (!hasSeenOnboarding) {
+        setShowOnboarding(true);
+        setView('onboarding');
+      } else {
+        setView('checkin');
+      }
     }, 2000);
     return () => clearTimeout(timer);
   }, []);
+
+  const handleOnboardingComplete = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vibe_check_onboarding_seen', 'true');
+    }
+    setShowOnboarding(false);
+    setView('checkin');
+  };
 
   const handleCheckIn = () => {
     if (!user) return;
@@ -328,8 +380,57 @@ export default function App() {
 
 
   // --- Views ---
+  const renderOnboarding = () => (
+    <div className="flex flex-col h-full bg-zinc-950 dark:bg-zinc-950 text-white p-6 overflow-y-auto">
+      <div className="flex-1 flex flex-col items-center justify-center space-y-6 text-center">
+        <div className="relative">
+          <div className="absolute inset-0 bg-emerald-500 blur-3xl opacity-20 rounded-full animate-pulse"></div>
+          <Zap className="relative z-10 w-16 h-16 text-emerald-400" />
+        </div>
+        <h1 className="text-3xl font-black tracking-tighter">Welcome to Vibe Check</h1>
+        <div className="space-y-4 max-w-sm">
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+            <h2 className="text-lg font-bold text-emerald-400 mb-2 flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              What is Vibe Check?
+            </h2>
+            <p className="text-zinc-300 text-sm leading-relaxed">
+              Track your signal strength and growth stats. Get insights into your onchain presence and daily vibe.
+            </p>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+            <h2 className="text-lg font-bold text-cyan-400 mb-2 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              How to Get Started
+            </h2>
+            <p className="text-zinc-300 text-sm leading-relaxed">
+              Tap "Check Vibe" to analyze your score. Check in daily to build your streak and improve your ranking.
+            </p>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+            <h2 className="text-lg font-bold text-purple-400 mb-2 flex items-center gap-2">
+              <Share2 className="w-5 h-5" />
+              Share Your Score
+            </h2>
+            <p className="text-zinc-300 text-sm leading-relaxed">
+              Share your neynar score with friends and see where you rank in the community.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="pt-6 pb-8">
+        <button
+          onClick={handleOnboardingComplete}
+          className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl transition-all active:scale-95 shadow-lg shadow-emerald-500/30 min-h-[44px]"
+        >
+          Get Started
+        </button>
+      </div>
+    </div>
+  );
+
   const renderSplash = () => (
-    <div className="flex flex-col items-center justify-center h-full bg-black text-white space-y-6">
+    <div className="flex flex-col items-center justify-center h-full bg-black dark:bg-black text-white space-y-6">
       <div className="relative">
         <div className="absolute inset-0 bg-emerald-500 blur-3xl opacity-20 rounded-full animate-pulse"></div>
         <Zap className="relative z-10 w-20 h-20 text-emerald-400 animate-bounce" />
@@ -341,11 +442,21 @@ export default function App() {
   const renderCheckIn = () => {
     if (!user) {
       return (
-        <div className="flex flex-col h-full bg-zinc-950 text-white items-center justify-center p-6">
+        <div className="flex flex-col h-full bg-zinc-950 dark:bg-zinc-950 text-white items-center justify-center p-6">
           {isLoading ? (
-            <div className="text-center space-y-4">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto"></div>
-              <p className="text-zinc-400">Loading your vibe score...</p>
+            <div className="flex flex-col items-center justify-center space-y-6">
+              <div className="relative">
+                <div className="absolute inset-0 bg-emerald-500 blur-3xl opacity-20 rounded-full animate-pulse"></div>
+                <Image 
+                  src="/vibecheck_1024.png" 
+                  alt="Vibe Check" 
+                  width={128}
+                  height={128}
+                  className="relative z-10 animate-pulse"
+                  priority
+                />
+              </div>
+              <h1 className="text-3xl font-black tracking-tighter italic">VIBE CHECK</h1>
             </div>
           ) : (
             <div className="text-center space-y-4">
@@ -365,7 +476,7 @@ export default function App() {
     }
     
     return (
-      <div className="flex flex-col h-full bg-zinc-950 text-white relative overflow-hidden">
+      <div className="flex flex-col h-full bg-zinc-950 dark:bg-zinc-950 text-white relative overflow-hidden">
         <div className="flex justify-between items-center p-6 z-10">
           <div className="flex items-center gap-2 bg-zinc-900/50 border border-zinc-800 px-3 py-1.5 rounded-full">
             <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
@@ -381,7 +492,7 @@ export default function App() {
         </h1>
       </div>
       <div className="p-6 z-10">
-        <button onClick={handleCheckIn} className="group w-full bg-white hover:bg-zinc-200 text-black h-16 rounded-2xl font-black text-xl flex items-center justify-center gap-3 transition-all active:scale-95">
+        <button onClick={handleCheckIn} className="group w-full bg-white dark:bg-white hover:bg-zinc-200 dark:hover:bg-zinc-200 text-black h-16 rounded-2xl font-black text-xl flex items-center justify-center gap-3 transition-all active:scale-95 min-h-[44px]">
           <Activity className="w-6 h-6 group-hover:rotate-12 transition-transform" />
           <span>CHECK VIBE</span>
         </button>
@@ -391,7 +502,7 @@ export default function App() {
   };
 
   const renderScanning = () => (
-    <div className="flex flex-col items-center justify-center h-full bg-black text-white">
+    <div className="flex flex-col items-center justify-center h-full bg-black dark:bg-black text-white">
       <div className="w-64 h-2 bg-zinc-900 rounded-full overflow-hidden mb-8">
         <div className="h-full bg-emerald-500 animate-[loading_2s_ease-in-out_infinite] w-1/3"></div>
       </div>
@@ -402,11 +513,21 @@ export default function App() {
   const renderScore = () => {
     if (!user) {
       return (
-        <div className="flex flex-col h-full bg-zinc-950 text-white items-center justify-center p-6">
+        <div className="flex flex-col h-full bg-zinc-950 dark:bg-zinc-950 text-white items-center justify-center p-6">
           {isLoading ? (
-            <div className="text-center space-y-4">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto"></div>
-              <p className="text-zinc-400">Loading your vibe score...</p>
+            <div className="flex flex-col items-center justify-center space-y-6">
+              <div className="relative">
+                <div className="absolute inset-0 bg-emerald-500 blur-3xl opacity-20 rounded-full animate-pulse"></div>
+                <Image 
+                  src="/vibecheck_1024.png" 
+                  alt="Vibe Check" 
+                  width={128}
+                  height={128}
+                  className="relative z-10 animate-pulse"
+                  priority
+                />
+              </div>
+              <h1 className="text-3xl font-black tracking-tighter italic">VIBE CHECK</h1>
             </div>
           ) : (
             <div className="text-center space-y-4">
@@ -426,7 +547,7 @@ export default function App() {
     }
     
     return (
-      <div className="flex flex-col h-full bg-zinc-950 text-white">
+      <div className="flex flex-col h-full bg-zinc-950 dark:bg-zinc-950 text-white">
         {apiError && (
           <div className="bg-yellow-900/40 border-b border-yellow-700/50 p-3 text-center">
             <p className="text-yellow-400 text-sm">{apiError}</p>
@@ -444,14 +565,14 @@ export default function App() {
       <div className="p-6 pb-8 space-y-3">
         <button
           onClick={handleShareScore}
-          className="group w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-emerald-500/30"
+          className="group w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-emerald-500/30 min-h-[44px]"
         >
           <Share2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
           <span className="text-lg">Share My Vibe Score</span>
         </button>
         <button
           onClick={() => setView('tips')}
-          className="group w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95"
+          className="group w-full bg-zinc-800 dark:bg-zinc-800 hover:bg-zinc-700 dark:hover:bg-zinc-700 border border-zinc-700 dark:border-zinc-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 min-h-[44px]"
         >
           <Lightbulb className="w-5 h-5 text-yellow-400" />
           <span className="text-lg">How to Improve Your Vibe Score</span>
@@ -463,13 +584,13 @@ export default function App() {
   };
 
   const renderTips = () => (
-    <div className="flex flex-col h-full bg-zinc-950 text-white overflow-y-auto">
+    <div className="flex flex-col h-full bg-zinc-950 dark:bg-zinc-950 text-white overflow-y-auto">
       {/* Header with back button */}
-      <div className="sticky top-0 bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-800 p-4 flex items-center justify-between z-10">
-        <h1 className="text-xl font-black tracking-tight">How to Improve Your Vibe Score</h1>
+      <div className="sticky top-0 bg-zinc-950/95 dark:bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-800 dark:border-zinc-800 p-4 flex items-center justify-between z-10">
+        <h1 className="text-xl font-black tracking-tight">⭐ Neynar Score: Quick Do & Don&apos;t Guide</h1>
         <button
           onClick={() => setView('score')}
-          className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+          className="p-2 hover:bg-zinc-800 dark:hover:bg-zinc-800 rounded-lg transition-colors min-h-[44px] min-w-[44px]"
         >
           <X className="w-5 h-5" />
       </button>
@@ -478,64 +599,104 @@ export default function App() {
       {/* Content */}
       <div className="flex-1 p-6 space-y-6">
         <div className="space-y-4">
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-5">
-            <h2 className="text-lg font-bold text-red-400 mb-3 flex items-center gap-2">
-              <span className="text-2xl">⚠️</span>
-              What Hurts Your Score
-            </h2>
+          {/* Introduction */}
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-5">
+            <p className="text-zinc-300 leading-relaxed mb-2">
+              Neynar measures how helpful, real, and trustworthy you are in the feed.
+            </p>
             <p className="text-zinc-300 leading-relaxed">
-              Liking many posts at the same time doesn&apos;t help your Neynar score—it actually hurts your account quality.
+              Scores go from 0.00 to 1.00, and they update weekly — slow and steady wins.
             </p>
           </div>
 
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-5">
-            <h3 className="text-base font-bold text-yellow-400 mb-2">The Neynar algorithm doesn&apos;t support spam liking. It can:</h3>
-            <ul className="space-y-2 text-zinc-300 list-disc list-inside">
-              <li>Flag your account</li>
-              <li>Lower your score</li>
-              <li>Make your engagement look fake</li>
-              <li>Even get you blocked by people you&apos;re trying to support</li>
-            </ul>
-          </div>
-
+          {/* DO Section */}
           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5">
             <h2 className="text-lg font-bold text-emerald-400 mb-3 flex items-center gap-2">
-              <span className="text-2xl">✨</span>
-              To Grow the Right Way
+              <span className="text-2xl">✅</span>
+              DO: What Helps Your Score
             </h2>
             <ul className="space-y-3 text-zinc-300">
               <li className="flex items-start gap-3">
                 <span className="text-emerald-400 font-bold mt-1">•</span>
-                <span>Engage slowly and genuinely</span>
+                <span>Post real, original content — your thoughts, stories, photos, and experiences.</span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="text-emerald-400 font-bold mt-1">•</span>
-                <span>Read the post before you like it</span>
+                <span>Share value: tips, insights, or ideas that spark discussion.</span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="text-emerald-400 font-bold mt-1">•</span>
-                <span>Leave a real comment that shows you understand</span>
+                <span>Make strong casts, not many: a few good posts beat 10 empty ones.</span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="text-emerald-400 font-bold mt-1">•</span>
-                <span>Don&apos;t rush — growth takes time</span>
+                <span>Engage with intention: read before you react, leave meaningful comments, ask questions.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-emerald-400 font-bold mt-1">•</span>
+                <span>Join real conversations: replies and dialogues count for almost half of the score.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-emerald-400 font-bold mt-1">•</span>
+                <span>Be consistent: small, steady quality keeps your score rising.</span>
               </li>
             </ul>
           </div>
 
+          {/* DON'T Section */}
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-5">
+            <h2 className="text-lg font-bold text-red-400 mb-3 flex items-center gap-2">
+              <span className="text-2xl">❌</span>
+              DON&apos;T: What Hurts Your Score
+            </h2>
+            <ul className="space-y-3 text-zinc-300">
+              <li className="flex items-start gap-3">
+                <span className="text-red-400 font-bold mt-1">•</span>
+                <span>Spam-liking or rapid reactions — Neynar flags it as fake engagement.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-red-400 font-bold mt-1">•</span>
+                <span>AI-sounding or overly artificial posts — too much of it lowers quality signals.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-red-400 font-bold mt-1">•</span>
+                <span>Low-effort content: generic quotes, recycled images, Pinterest/Google photos.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-red-400 font-bold mt-1">•</span>
+                <span>Posting just to post: quantity without substance drags your score down.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-red-400 font-bold mt-1">•</span>
+                <span>Surface-level interactions: supporting people with empty likes can even get you blocked.</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Core Idea */}
           <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-5">
-            <p className="text-zinc-200 leading-relaxed italic">
-              This is how you build a true Base posting mindset: not by fast engagement, but by showing real presence and intention.
+            <h2 className="text-lg font-bold text-cyan-400 mb-3 flex items-center gap-2">
+              <span className="text-2xl">🌱</span>
+              The Core Idea
+            </h2>
+            <p className="text-zinc-200 leading-relaxed mb-3">
+              Neynar doesn&apos;t reward noise — it rewards social usefulness.
             </p>
+            <p className="text-zinc-200 leading-relaxed mb-3">
+              If your presence makes conversations better, your score naturally grows.
+            </p>
+            <p className="text-zinc-200 leading-relaxed italic">
+              Stay curious, stay human, and keep the feed bright.
+            </p>
+          </div>
         </div>
-      </div>
       </div>
 
       {/* Footer button */}
       <div className="p-6 pt-4 border-t border-zinc-800">
         <button
           onClick={() => setView('score')}
-          className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl transition-all active:scale-95"
+          className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl transition-all active:scale-95 min-h-[44px]"
         >
           Back to Score
         </button>
@@ -543,14 +704,61 @@ export default function App() {
     </div>
   );
 
+  // Bottom navigation bar
+  const renderBottomNav = () => {
+    // Don't show nav on splash, onboarding, or scanning
+    if (view === 'splash' || view === 'onboarding' || view === 'scanning') return null;
+    
+    return (
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-zinc-900/95 dark:bg-zinc-900/95 backdrop-blur-sm border-t border-zinc-800 dark:border-zinc-800 z-50">
+        <div className="flex items-center justify-around h-16 px-4">
+          <button
+            onClick={() => setView('checkin')}
+            className={`flex flex-col items-center justify-center gap-1 flex-1 min-h-[44px] transition-colors ${
+              view === 'checkin' 
+                ? 'text-emerald-400' 
+                : 'text-zinc-400 hover:text-zinc-300'
+            }`}
+          >
+            <Home className="w-5 h-5" />
+            <span className="text-xs font-medium">Home</span>
+          </button>
+          <button
+            onClick={() => setView('score')}
+            className={`flex flex-col items-center justify-center gap-1 flex-1 min-h-[44px] transition-colors ${
+              view === 'score' 
+                ? 'text-emerald-400' 
+                : 'text-zinc-400 hover:text-zinc-300'
+            }`}
+          >
+            <BarChart3 className="w-5 h-5" />
+            <span className="text-xs font-medium">Score</span>
+          </button>
+          <button
+            onClick={() => setView('tips')}
+            className={`flex flex-col items-center justify-center gap-1 flex-1 min-h-[44px] transition-colors ${
+              view === 'tips' 
+                ? 'text-emerald-400' 
+                : 'text-zinc-400 hover:text-zinc-300'
+            }`}
+          >
+            <Info className="w-5 h-5" />
+            <span className="text-xs font-medium">Tips</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="w-full h-screen max-w-md mx-auto sm:h-[800px] sm:rounded-3xl shadow-2xl overflow-hidden font-sans select-none">
+    <div className="w-full h-screen max-w-md mx-auto sm:h-[800px] sm:rounded-3xl shadow-2xl overflow-hidden font-sans select-none relative">
       {view === 'splash' && renderSplash()}
+      {view === 'onboarding' && renderOnboarding()}
       {view === 'checkin' && renderCheckIn()}
       {view === 'scanning' && renderScanning()}
       {view === 'score' && renderScore()}
       {view === 'tips' && renderTips()}
+      {renderBottomNav()}
     </div>
   );
 }

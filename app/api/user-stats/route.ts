@@ -427,6 +427,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       user: userData,
+    }, {
+      headers: {
+        // Cache for 5 minutes (300 seconds) - user data doesn't change frequently
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+      }
     });
   } catch (e) {
     console.error("Error in user-stats route:", e);
