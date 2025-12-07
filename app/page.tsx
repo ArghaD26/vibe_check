@@ -584,7 +584,7 @@ export default function App() {
   };
 
   const renderTips = () => (
-    <div className="flex flex-col h-full bg-zinc-950 dark:bg-zinc-950 text-white overflow-y-auto">
+    <div className="flex flex-col h-full bg-zinc-950 dark:bg-zinc-950 text-white">
       {/* Header with back button */}
       <div className="sticky top-0 bg-zinc-950/95 dark:bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-800 dark:border-zinc-800 p-4 flex items-center justify-between z-10">
         <h1 className="text-xl font-black tracking-tight">⭐ Neynar Score: Quick Do & Don&apos;t Guide</h1>
@@ -596,8 +596,8 @@ export default function App() {
       </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 p-6 space-y-6">
+      {/* Content - scrollable with bottom padding for nav bar */}
+      <div className="flex-1 overflow-y-auto p-6 pb-24 space-y-6">
         <div className="space-y-4">
           {/* Introduction */}
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-5">
@@ -692,15 +692,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Footer button */}
-      <div className="p-6 pt-4 border-t border-zinc-800">
-        <button
-          onClick={() => setView('score')}
-          className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl transition-all active:scale-95 min-h-[44px]"
-        >
-          Back to Score
-        </button>
-      </div>
+      {/* Footer button - removed since we have bottom nav */}
     </div>
   );
 
