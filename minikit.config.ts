@@ -22,9 +22,9 @@ export const minikitConfig = {
     subtitle: "Check your signal score", 
     description: "Track your signal strength, growth stats, and daily vibe. Get insights into your followers, likes, and streak to understand your onchain presence.",
     screenshotUrls: [
-      `${ROOT_URL}/vibecheck_screenshot_1.png`,
-      `${ROOT_URL}/vibecheck_screenshot_2.png`,
-      `${ROOT_URL}/vibecheck_screenshot_3.png`
+      `${ROOT_URL}/vibecheck_feature_1.png`,
+      `${ROOT_URL}/vibecheck_feature_2.png`,
+      `${ROOT_URL}/vibecheck_feature_3.png`
     ],
     iconUrl: `${ROOT_URL}/vibecheck_1024.png`,
     splashImageUrl: `${ROOT_URL}/vibecheck_1024.png`,
