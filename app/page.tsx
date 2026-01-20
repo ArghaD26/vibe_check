@@ -485,7 +485,7 @@ export default function App() {
         </div>
         <div className="flex-1 flex flex-col items-center justify-center z-10 p-6 text-center mt-[-40px]">
           <h2 className="text-gray-600 font-bold tracking-widest text-xs mb-4">
-            GOOD MORNING, @{(context?.user?.displayName || user.username || "THERE").toUpperCase()}
+            GOOD MORNING, @{(context?.user?.displayName || user.username || "THERE").toUpperCase()}!
           </h2>
         <h1 className="text-5xl font-black leading-none tracking-tight mb-6">
           READY TO<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-cyan-600">SYNC UP?</span>
