@@ -568,7 +568,7 @@ export default function App() {
           className="group w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-emerald-500/30 min-h-[44px]"
         >
           <Share2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-          <span className="text-lg">Share My Vibe Score</span>
+              <span className="text-lg">Share My Score</span>
         </button>
         <button
           onClick={() => setView('tips')}
