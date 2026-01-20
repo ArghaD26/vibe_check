@@ -480,7 +480,7 @@ export default function App() {
         <div className="flex justify-between items-center p-6 z-10">
           <div className="flex items-center gap-2 bg-gray-100 border border-gray-300 px-3 py-1.5 rounded-full">
             <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
-            <span className="text-xs font-bold text-zinc-700">{user.streak} Day Streak</span>
+            <span className="text-xs font-bold text-zinc-700">{user.streak} Day Streak 🔥</span>
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center z-10 p-6 text-center mt-[-40px]">
