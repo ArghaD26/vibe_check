@@ -53,7 +53,7 @@ const ScoreGauge = ({ score }: { score: number }) => {
   return (
     <div className="relative w-64 h-64 flex items-center justify-center">
       <svg className="w-full h-full transform -rotate-90">
-        <circle cx="128" cy="128" r={radius} stroke="currentColor" strokeWidth="12" fill="transparent" className="text-gray-200" />
+        <circle cx="128" cy="128" r={radius} stroke="currentColor" strokeWidth="12" fill="transparent" className="text-gray-100" />
         <circle
           cx="128"
           cy="128"
